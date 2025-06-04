@@ -7,6 +7,14 @@
 import math
 
 
+class MemoriaFisica:
+
+    # inicializa uma entrada da MemoriaFisica
+    def __init__(self, n_quadros, tam_quadro):
+        self.nQuadros = n_quadros
+        self.tamQuadro = tam_quadro
+
+
 class TP:
     # inicializa a Tabela de Paginas
     def __init__(self, n_entradas, tam_endereco):
@@ -21,27 +29,31 @@ class TP:
             entrada = {
                 'Presenca':  0,
                 'Modificacao': 0,
-                'Quadro': None
+                'Quadro': None,
+                'Tempo': 0 # O tempo serve para politica LRU, significa quantas buscas foram feitas sem ele ser acessado
             }
             entradas.append(entrada)
         return entradas
 
     # busca na TP em que quadro uma pagina esta amarzenada
     def buscar(self, n_pagina):
+        for entrada in self.entradas:
+            entrada['Tempo'] =+ 1
         if self.entradas[n_pagina]['Presenca'] == 1:
             return self.entradas[n_pagina]['Quadro']  # pagina encontrada
         else:
-            return -1  # nao acha a pagina e ativa a Politica de Substituicao
+            n_quadro = MemoriaFisica.trazer_da_mv()
+            GerenciadorMemoria.politica_substituicao(self.entradas) # nao acha a pagina e ativa a Politica de Substituicao
+            TP.atualizar(n_quadro)
 
     # atualiza uma entrada da TP
-    def atualizar(self, n_pagina, p, m, n_quadro, GM):
+    def atualizar(self, n_quadro):
         for entrada in self.entradas:
             if entrada['Presenca'] == 0:
                 entrada['Presenca'] = 1
-                entrada['Modificacao'] = m
+                entrada['Modificacao'] = 0
                 entrada['Quadro'] = n_quadro
-            else:
-                GM.politica_substituicao()
+                entrada['Tempo'] = 0
 
     # mostra o estado atual da TP
     def mostrar(self):
@@ -66,7 +78,8 @@ class TLB:
                 'Pagina': None,
                 'Presenca': 0,
                 'Modificacao': 0,
-                'Quadro': None
+                'Quadro': None,
+                'Tempo': 0
             }
             entradas.append(entrada)
         return entradas
@@ -76,11 +89,12 @@ class TLB:
         for entrada in self.n_entradas:
             if entrada['Validade'] == 1 and entrada['Pagina'] == n_pagina:
                 return self.entradas[n_pagina]['Quadro']
-        return -1
+            else:
+                GerenciadorMemoria.politica_substituicao(self.entradas)
 
     # Atualiza uma entrada da TLB
     # Prec
-    def atualizar(self, n_pagina, v, p, m, n_quadro, GM):
+    def atualizar(self, n_pagina, v, p, m, n_quadro):
         for entrada in self.entradas:
             if entrada['Presenca'] == 0:
                 entrada['Presenca'] = 1
@@ -88,10 +102,9 @@ class TLB:
                 entrada['Pagina'] = n_pagina
                 entrada['Presenca'] = p
                 entrada['Modificacao'] = m
-                entrada['nQuadro'] = n_quadro
+                entrada['Quadro'] = n_quadro
+                entrada['Tempo'] = 0
                 break
-            else:
-                GM.politica_substituicao(self)
 
     def mostrar(self):
         for item in self.entradas:
@@ -103,16 +116,34 @@ class GerenciadorMemoria:
     # inicializa uma entrada do GerenciadorMemoria
     def __int__(self):
 
-     def politica_substituicao():
-         return 0
 
+    @staticmethod
+    def lru(entradas):
 
-class MemoriaFisica:
+        maior_tempo = 0
+        for entrada in entradas:
+            if entrada['Tempo'] > maior_tempo:
+                maior_tempo = entrada['Tempo']
 
-    # inicializa uma entrada da MemoriaFisica
-    def __init__(self, n_quadros, tam_quadro):
-        self.nQuadros = n_quadros
-        self.tamQuadro = tam_quadro
+        for entrada in entradas:
+            if entrada['Tempo'] == maior_tempo:
+                entrada['Presenca'] = 0
+
+    @staticmethod
+    def relogio(entradas):
+        print("a")
+
+    @staticmethod
+    def politica_substituicao(entradas):
+        while True:
+            print("Escolha 1 para LRU e 2 para Relógio")
+            op = int(input())
+            if op == 1:
+                return GerenciadorMemoria.lru(entradas)
+            elif op == 2:
+                return GerenciadorMemoria.relogio(entradas)
+            else:
+                print("Digite as opções 1 ou 2!")
 
 
 def main():
