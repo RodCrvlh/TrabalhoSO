@@ -6,13 +6,88 @@
 # import tkinter
 import math
 
+#Estrutura ue mantem as paginas que não estão na memoria fisica
+class MemoriaSecundaria:
 
+    def __init__(self):
+        self.dados = self.init_dados(self)
+
+    @staticmethod
+    def init_dados():
+        dados = []
+        for dado in dados:
+            dado = {
+                'Id_processo': None,
+                'N_pagina': None
+            }
+            dados.append(dado)
+        return dados
+
+#Estrutura que mantem os dados e quadros amarzenados
 class MemoriaFisica:
 
     # inicializa uma entrada da MemoriaFisica
     def __init__(self, n_quadros, tam_quadro):
-        self.nQuadros = n_quadros
-        self.tamQuadro = tam_quadro
+        self.n_quadros = n_quadros
+        self.tam_quadro = tam_quadro
+        self.quadros = self.init_quadros()
+
+    def init_quadros(self):
+        quadros = []
+        for _ in range (self.n_quadros):
+            quadro = {
+                'Dados': [None]*self.tam_quadro,
+                'Processo': None,
+                'Pagina': None
+            }
+            quadros.append(quadro)
+        return quadros
+
+    def ler(self, end_fisico):
+        id_quadro = end_fisico//self.tam_quadro
+        offset = end_fisico% self.tam_quadro
+
+        return self.quadros[id_quadro]['Dados'][offset]
+
+    def escrever(self, end_fisico, dado):
+        id_quadro = end_fisico // self.tam_quadro
+        offset = end_fisico % self.tam_quadro
+
+        if id_quadro >= self.n_quadros:
+            print("Endereço invalido")
+
+        self.quadros[id_quadro]['Dados'][offset] = dado
+
+    def alocar_quadro(self, processo, pagina):
+
+        for i, quadro in self.quadros:
+            if quadro['Pagina'] is None:
+                quadro['Pagina'] = pagina
+                quadro['Processo'] = processo
+                quadro['Dados'] = [None] * self.tam_quadro
+                return i
+    def liberar_quadro(self, id_quadro):
+
+        if id_quadro >= self.n_quadros:
+            print("Quadro inexistente")
+            return
+
+        self.quadros[id_quadro] = {
+            'Dados': [None] * self.tam_quadro,
+            'Processo': None,
+            'Pagina': None
+        }
+
+    def mostrar(self):
+        i = 0
+        print("Memoria Fisica:")
+        print("------------------------------------")
+        for quadro in self.quadros:
+            if quadro is None:
+                print(f"Quadro {i}: Livre")
+            else:
+                print(f"Quadro {i}: Processo{quadro['Processo']}, Pagina:{quadro['Pagina']}, Dados:{quadro['Dados']}")
+        print("------------------------------------")
 
 
 class TP:
@@ -38,12 +113,12 @@ class TP:
     # busca na TP em que quadro uma pagina esta amarzenada
     def buscar(self, n_pagina):
         for entrada in self.entradas:
-            entrada['Tempo'] =+ 1
+            entrada['Tempo'] += 1
         if self.entradas[n_pagina]['Presenca'] == 1:
             return self.entradas[n_pagina]['Quadro']  # pagina encontrada
         else:
-            n_quadro = MemoriaFisica.trazer_da_mv()
             GerenciadorMemoria.politica_substituicao(self.entradas) # nao acha a pagina e ativa a Politica de Substituicao
+            n_quadro = MemoriaFisica.trazer_da_mv()
             TP.atualizar(n_quadro)
 
     # atualiza uma entrada da TP
@@ -116,6 +191,12 @@ class GerenciadorMemoria:
     # inicializa uma entrada do GerenciadorMemoria
     def __int__(self):
 
+    @staticmethod
+    def traduzir_endereco(self, n_quadro, end_logico):
+        n_pagina = end_logico / self.tam_quadro
+        offset = end_logico % self.tam_quadro
+        end_fisco = (n_quadro * self.tam_quadro) + offset
+        return end_fisco
 
     @staticmethod
     def lru(entradas):
