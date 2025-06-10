@@ -322,6 +322,11 @@ class GerenciadorMemoria:
 
     def criar_processo(self, n_entradas_tp, id_processo, tam_imagem):
 
+        for processo in enumerate(self.processos):
+            if processo.id == id_processo:
+                print(f"Processo {id_processo} já existe")
+                return
+
         n_paginas = tam_imagem//self.mp.tam_quadro
 
         # 1 bit de presenca e 1 de modificacao
@@ -329,9 +334,13 @@ class GerenciadorMemoria:
         # tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
 
         processo = Processo("Novo", id_processo, n_entradas_tp)
-
         self.processos.append(processo)
-        self.ms.salvar(id_processo, n_paginas, [""]*self.mp.tam_quadro)
+
+        if not self.ms.salvar(id_processo, n_paginas, [""]*self.mp.tam_quadro):
+            print(f"Espaço insuficiente na Memória Secundária, não foi possível criar processo {id_processo}")
+            self.processos.pop()
+            return
+
         self.ms.mostrar()
 
     # Primeiro precisamos liberar as paginas presentes na MP, ou seja, os que estão na TP e depois na MS
