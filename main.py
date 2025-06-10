@@ -5,6 +5,7 @@
 
 # import tkinter
 import math
+import copy
 
 # Estrutura que mantem as paginas que não estão na memoria principal
 
@@ -40,10 +41,14 @@ class MemoriaSecundaria:
     def carregar(self, id_processo, n_pagina):
         for i, dado in enumerate(self.dados):
             if int(dado['Processo']) == id_processo and dado['Pagina'] == n_pagina:
+                novo_quadro = copy.deepcopy(dado)  # cria uma cópia do dado que não referencia o seu endereço original
                 self.dados[i]['Conteudo'] = [""] * self.tam_pg
                 self.dados[i]['Processo'] = -1
                 self.dados[i]['Pagina'] = -1
-                return dado
+                return novo_quadro
+
+        print(f"Pagina {n_pagina} do processo {id_processo} não está na Memória Secundária")
+        return None
 
     def salvar(self, id_processo, n_paginas, conteudo):
 
@@ -89,21 +94,31 @@ class MemoriaPrincipal:
         quadros = []
         for _ in range(self.n_quadros):
             quadro = {
-                'Dados': [""] * self.tam_quadro,
+                'Conteudo': [""] * self.tam_quadro,
                 'Processo': -1,
                 'Pagina': -1
             }
             quadros.append(quadro)
         return quadros
 
+    def esta_cheio(self):
+
+        for i, in range(self.n_quadros):
+            if self.quadros[i]['Processo'] == -1:
+                return False
+
+        return True
+
     def ler(self, n_quadro):
         return self.quadros[n_quadro]
 
     def escrever(self, n_quadro, offset, conteudo):
+
         if n_quadro >= self.n_quadros:
             print("Endereço invalido")
+            return None
 
-        self.quadros[n_quadro]['Dados'][offset] = conteudo
+        self.quadros[n_quadro]['Conteudo'][offset] = conteudo
 
     def alocar_quadro(self, processo, pagina, conteudo):
 
@@ -111,7 +126,8 @@ class MemoriaPrincipal:
             if quadro['Pagina'] == -1:
                 quadro['Pagina'] = pagina
                 quadro['Processo'] = processo
-                quadro['Dados'] = conteudo
+                quadro['Conteudo'] = conteudo
+                print(i)
                 return i
         return -1
 
@@ -122,7 +138,7 @@ class MemoriaPrincipal:
             return
 
         self.quadros[id_quadro] = {
-            'Dados': [""] * self.tam_quadro,
+            'Conteudo': [""] * self.tam_quadro,
             'Processo': -1,
             'Pagina': -1
         }
@@ -134,15 +150,15 @@ class MemoriaPrincipal:
             if quadro['Processo'] == -1:
                 print(f"Quadro {i}: Livre")
             else:
-                print(f"Quadro {i}: Processo{quadro['Processo']}, Pagina:{quadro['Pagina']}, Dados:{quadro['Dados']}")
+                print(f"Quadro {i}: Processo{quadro['Processo']}, Pagina:{quadro['Pagina']}, "
+                      f"Conteudo:{quadro['Conteudo']}")
         print("------------------------------------")
 
 
 class TP:
     # inicializa a Tabela de Paginas
-    def __init__(self, n_entradas, tam_endereco):
+    def __init__(self, n_entradas):
         self.n_entradas = n_entradas
-        self.tam_endereco = tam_endereco
         self.entradas = self.init_entradas()
 
     # inicializa o dicionario entradas que representa as entradas da TP
@@ -159,23 +175,30 @@ class TP:
             entradas.append(entrada)
         return entradas
 
+    def aumentar_tempo(self, n_pagina):
+
+        for i in range(self.n_entradas):
+            if i != n_pagina and self.entradas[i]['Quadro'] != -1:
+                self.entradas[i]['Tempo'] += 1
+
     # busca na TP em que quadro uma pagina esta amarzenada
-    def buscar(self, n_pagina_bits):
+    def buscar(self, n_pagina_bits, mp):
 
         n_pagina = int(n_pagina_bits, 2)  # Passando para o decimal
-        print(n_pagina)
 
-        for i, entrada in self.entradas:
+        if self.entradas[n_pagina]['Presenca'] == 1:  # Achou a pagina na TP
+            self.entradas[n_pagina]['Tempo'] = 0
+            self.aumentar_tempo(n_pagina)
+            return self.entradas[n_pagina]['Quadro']
 
-            if self.entradas[i]['Presenca'] == 1:
-                return self.entradas[n_pagina]['Quadro']  # pagina encontrada
+        elif self.entradas[n_pagina]['Quadro'] == -1:  # Não achou a pagina na TP
 
-            elif self.entradas[n_pagina]['Presenca'] == 1 and self.entradas[n_pagina]['Quadro'] == -1:
-                self.entradas[i]['Tempo'] += 1
+            if not mp.esta_cheio():  # Verifica que é possível adicionar a página na TP
+                self.aumentar_tempo(n_pagina)
                 return -2
 
-            else:
-                self.entradas[i]['Tempo'] += 1
+            else:  # Verifica que não é possível adicionar a página na TP
+                self.aumentar_tempo(n_pagina)
                 return -1
 
     def retirar_presenca(self, tempo):
@@ -186,13 +209,10 @@ class TP:
 
     # atualiza uma entrada da TP
     def atualizar(self, m, n_quadro, n_pagina):
-        for i, entrada in enumerate(self.entradas):
-            if entrada['Presenca'] == 0 and i == n_pagina:
-                entrada['Presenca'] = 1
-                entrada['Modificacao'] = m
-                entrada['Quadro'] = n_quadro
-                entrada['Tempo'] = 0
-                break
+        self.entradas[n_pagina]['Presenca'] = 1
+        self.entradas[n_pagina]['Modificacao'] = m
+        self.entradas[n_pagina]['Quadro'] = n_quadro
+        self.entradas[n_pagina]['Tempo'] = 0
 
     # mostra o estado atual da TP
     def mostrar(self):
@@ -222,17 +242,26 @@ class TLB:
             entradas.append(entrada)
         return entradas
 
-    # Busca nas entradas da TLB uma pagina especifica e também ve se é válida a pagina
+    def aumentar_tempo(self, n_pagina):
+
+        for i in range(self.n_entradas):
+            if self.entradas[i]['Pagina'] != n_pagina and self.entradas[i]['Quadro'] != -1:
+                self.entradas[i]['Tempo'] += 1
+
+                # Busca nas entradas da TLB uma pagina especifica e também ve se é válida a pagina
     def buscar(self, n_pagina):
         for i, entrada in enumerate(self.entradas):
 
-            if entrada['Validade'] == 1 and entrada['Pagina'] == n_pagina:
+            if entrada['Validade'] == 1 and entrada['Pagina'] == n_pagina:  # entrada encontrada
+                self.entradas[i]['Tempo'] = 0
+                self.aumentar_tempo(n_pagina)
                 return self.entradas[i]['Quadro']
 
-            if entrada['Validade'] == 0 and self.entradas[n_pagina]['Quadro'] == -1:
+            if entrada['Validade'] == 0 and entrada['Quadro'] == -1:  # entrada vazia
+                self.aumentar_tempo(n_pagina)
                 return -2
 
-        return -1
+        return -1   # entrada não encontrada
 
     def retirar_presenca(self, tempo):
         for entrada in self.entradas:
@@ -256,6 +285,16 @@ class TLB:
     def mostrar(self):
         for item in self.entradas:
             print(item)
+
+
+class Processo:
+
+    def __init__(self, estado, id_processo, n_entrada_tp):
+        self.estado = estado
+        self.id = id_processo
+        self.tp = TP(n_entrada_tp)
+
+    # def alterar_estado(self):
 
 
 class GerenciadorMemoria:
@@ -288,12 +327,10 @@ class GerenciadorMemoria:
 
         # 1 bit de presenca e 1 de modificacao
         # Usamos log na base 2 porque com 1024 quadros por exemplo, poderemos ter 10 bits para endereçar os quadros
-        tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
+        # tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
 
-        processo = {
-            'Id': id_processo,
-            'TP': TP(n_entradas_tp, tam_entrada_tp)
-        }
+        processo = Processo("Novo", id_processo, n_entradas_tp)
+
         self.processos.append(processo)
         self.ms.salvar(id_processo, n_paginas, [""]*self.mp.tam_quadro)
         self.ms.mostrar()
@@ -302,8 +339,8 @@ class GerenciadorMemoria:
     def terminar_processo(self, id_processo):
         self.ms.liberar_processo(id_processo)
         for i, processo in enumerate(self.processos):
-            if processo['Id'] == id_processo:
-                tp = processo['TP']
+            if processo.id == id_processo:
+                tp = processo.tp
                 for entrada in tp.entradas:
                     self.mp.liberar_quadro(entrada['Quadro'])
                 break
@@ -312,8 +349,8 @@ class GerenciadorMemoria:
 
     def mostrar_tp(self, id_processo):
         for i, processo in enumerate(self.processos):
-            if processo['Id'] == id_processo:
-                self.processos[i]['TP'].mostrar()
+            if processo.id == id_processo:
+                self.processos[i].tp.mostrar()
 
     @staticmethod
     def traduzir_endereco(end_logico):
@@ -321,16 +358,27 @@ class GerenciadorMemoria:
         return end_fisico.zfill(16)   # preenche com zeros a esquerda
 
     def transferir_mp(self, id_processo, n_pagina):
+
         quadro = self.ms.carregar(id_processo, n_pagina)
+
+        if quadro is None:
+            print(f"Página {n_pagina} do processo {id_processo} não encontrado na Memória Secundaria")
+            return None
+
         n_quadro = self.mp.alocar_quadro(quadro['Processo'], quadro['Pagina'], quadro['Conteudo'])
         return n_quadro
 
     def add_entrada_tp(self, m, id_processo, n_pagina):
         novo_n_quadro = self.transferir_mp(id_processo, n_pagina)
+
+        if novo_n_quadro is None:
+            return None
+
         for i, processo in enumerate(self.processos):
-            if processo["Id"] == id_processo:
-                self.processos[i]['TP'].atualizar(m, novo_n_quadro, n_pagina)
-                self.processos[i]['TP'].mostrar()
+            if processo.id == id_processo:
+                self.processos[i].tp.atualizar(m, novo_n_quadro, n_pagina)
+                self.processos[i].tp.mostrar()
+
         return novo_n_quadro
 
     def escrita_memoria(self, id_processo, end_logico, conteudo):
@@ -342,8 +390,12 @@ class GerenciadorMemoria:
         offset = int(end_fisico[bits_pagina:self.end_logico['offset']], 2)
 
         if n_quadro == -2:  # tlb e tp ainda nao estao cheias
-            print("TP ainda não está cheia! Adicionando entrada!")
             novo_n_quadro = self.add_entrada_tp(1, id_processo, n_pagina)
+
+            if novo_n_quadro is None:
+                return
+
+            print("TP ainda não está cheia! Adicionando entrada!")
             print("TLB ainda não está cheia! Adicionando entrada!")
             self.tlb.atualizar(n_pagina, 1, 1, novo_n_quadro)
             self.tlb.mostrar()
@@ -358,9 +410,9 @@ class GerenciadorMemoria:
         else:  # Não Achou
             for i, processo in enumerate(self.processos):
 
-                if processo['Id'] == id_processo:
-                    tp = processo['TP']
-                    n_quadro = tp.buscar(end_fisico[:bits_pagina])  # Procura se a pagina esta na tp
+                if processo.id == id_processo:
+                    tp = processo.tp
+                    n_quadro = tp.buscar(end_fisico[:bits_pagina], self.mp)  # Procura se a pagina esta na tp
 
                     if n_quadro == -2:  # tp ainda nao esta cheia
                         print("TP ainda não está cheia! Adicionando entrada!")
@@ -374,7 +426,11 @@ class GerenciadorMemoria:
                         self.mp.escrever(quadro, offset, conteudo)
 
                     else:  # Não achou
-                        n_novo_quadro = self.politica_sub.sub_tp(tp, self.mp, self.ms, id_processo, end_fisico[:bits_pagina], 1)
+                        n_novo_quadro = self.politica_sub.sub_tp(tp, self.mp, self.ms, id_processo, n_pagina, 1)
+
+                        if n_novo_quadro is None:
+                            return
+
                         self.politica_sub.sub_tlb(self.tlb, self.mp, n_novo_quadro, 1)
                         self.mostrar_tp(id_processo)
                         self.tlb.mostrar()
@@ -390,70 +446,87 @@ class GerenciadorMemoria:
         offset = int(end_fisico[bits_pagina:self.end_logico['offset']], 2)
 
         if n_quadro == -2:  # tlb e tp ainda nao estao cheias
-            print("TP ainda não está cheia! Adicionando entrada!")
             novo_n_quadro = self.add_entrada_tp(0, id_processo, n_pagina)
+
+            if novo_n_quadro is None:
+                return
+
+            print("TP ainda não está cheia! Adicionando entrada!")
             print("TLB ainda não está cheia! Adicionando entrada!")
             self.tlb.atualizar(n_pagina, 1, 0, novo_n_quadro)
             self.tlb.mostrar()
             quadro = self.mp.ler(novo_n_quadro)
-            return quadro['Dados'][offset]
+            return quadro['Conteudo'][offset]
 
         elif n_quadro != -1 and n_quadro != -2:  # Achou
             print("TLB hit!")
             self.tlb.mostrar()
             self.mostrar_tp(id_processo)
-            quadro = self.mp.ler(n_quadro, offset)
-            return quadro['Dados'][offset]
+            quadro = self.mp.ler(n_quadro)
+            return quadro['Conteudo'][offset]
 
         else:  # Não Achou
             for i, processo in enumerate(self.processos):
 
-                if processo['Id'] == id_processo:
-                    tp = processo['TP']
-                    n_quadro = tp.buscar(end_fisico[:bits_pagina])  # Procura se a pagina esta na tp
+                if processo.id == id_processo:
+                    tp = processo.tp
+                    n_quadro = tp.buscar(end_fisico[:bits_pagina], self.mp)  # Procura se a pagina esta na tp
 
                     if n_quadro == -2:  # tp ainda nao esta cheia
                         print("TP ainda não está cheia! Adicionando entrada!")
                         novo_n_quadro = self.add_entrada_tp(0, id_processo, n_pagina)
+
+                        if novo_n_quadro is None:
+                            return
+
                         quadro = self.mp.ler(novo_n_quadro)
-                        return quadro['Dados'][offset]
+                        return quadro['Conteudo'][offset]
 
                     elif n_quadro != -1:  # Achou
                         print("Pagina esta na TP")
-                        quadro = self.politica_sub.sub_tlb(self.tlb, self.mp, n_quadro, 0)
-                        return quadro['Dados'][offset]
+                        m = tp.entradas[n_pagina]['Modificacao']
+                        quadro = self.politica_sub.sub_tlb(self.tlb, self.mp, n_quadro, m)
+                        return quadro['Conteudo'][offset]
 
                     else:  # Não achou
-                        n_novo_quadro = self.politica_sub.sub_tp(tp, self.mp, self.ms, id_processo, end_fisico[:bits_pagina], 0)
+                        n_novo_quadro = self.politica_sub.sub_tp(tp, self.mp, self.ms, id_processo, n_pagina, 0)
+
+                        if n_novo_quadro is None:
+                            return
+
                         quadro = self.politica_sub.sub_tlb(self.tlb, self.mp, n_novo_quadro, 0)
                         self.mostrar_tp(id_processo)
                         self.tlb.mostrar()
-                        return quadro['Dados'][offset]
+                        return quadro['Conteudo'][offset]
 
 
 class PoliticaSubstituicao:
 
     @staticmethod
-    def lru_tp(tp, mp, ms, id_processo, n_pagina_bits, m):
-
-        n_pagina = int(str(n_pagina_bits), 2)  # Passando para o decimal
+    def lru_tp(tp, mp, ms, id_processo, n_pagina, m):
 
         maior_tempo = -1
         idx_maior = -1
+
         for idx, entrada in enumerate(tp.entradas):
             if entrada['Tempo'] > maior_tempo:
                 maior_tempo = entrada['Tempo']
                 idx_maior = idx
 
-        entrada_subs = tp.entradas[idx_maior]
+        entrada_subs = tp.entradas[idx_maior]  # pega entrada que será substituida por ter mais tempo sem ser executada
 
         tp.retirar_presenca(maior_tempo)
 
         quadro = mp.ler(entrada_subs['Quadro'])
-        ms.salvar(quadro['Processo'], 1, quadro['Dados'])
+        ms.salvar(quadro['Processo'], 1, quadro['Conteudo'])
         novo_quadro = ms.carregar(id_processo, n_pagina)
-        mp.escrever(entrada_subs['Quadro'], novo_quadro)
 
+        if novo_quadro is None:
+            return None
+
+        print(entrada_subs['Quadro'])
+        mp.escrever(entrada_subs['Quadro'], novo_quadro, novo_quadro['Conteudo'])
+        tp.atualizar(m, novo_quadro, n_pagina)
 
         return entrada_subs['Quadro']
 
@@ -465,7 +538,7 @@ class PoliticaSubstituicao:
             if entrada['Tempo'] > maior_tempo:
                 maior_tempo = entrada['Tempo']
 
-        tlb.retirar_presenca(maior_tempo)
+        tlb.retirar_presenca(maior_tempo)  # pega entrada que será substituida por ter mais tempo sem ser executada
 
         quadro = mp.ler(n_quadro)
         tlb.atualizar(quadro['Pagina'], 1, m, 0, n_quadro)
@@ -551,7 +624,10 @@ def main():
         elif opcao == 'R':
             id_processo = int(input("Digite o id do processo:"))
             end_logico = int(input("Digite o endereço logico:"))
-            print(gm.leitura_memoria(id_processo, end_logico))
+            leitura = gm.leitura_memoria(id_processo, end_logico)
+
+            if leitura is not None:
+                print(leitura)
 
         elif opcao == 'W':
             id_processo = int(input("Digite o id do processo:"))
