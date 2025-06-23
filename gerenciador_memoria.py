@@ -1,14 +1,16 @@
 import math
 
+from tabela_paginas import PageTable
+from process_control_block import ProcessControlBlock
 from politica_substituicao import PoliticaSubstituicao
-from processo import Processo
 
 class GerenciadorMemoria:
     def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico):
+        self.proximo_id_processo = 0
         self.mp = mem_principal
         self.ms = mem_sec
         self.tlb = tlb
-        self.processos = []
+
         self.politica_sub = PoliticaSubstituicao()
         self.end_logico = self.init_end_logico(tam_end_logico)
 
@@ -22,30 +24,37 @@ class GerenciadorMemoria:
             '#Pagina': n_pagina_bits,
             'offset': offset_bits
         }
-
         return end_logico
 
 
-    def criar_processo(self, n_entradas_tp, id_processo, tam_imagem):
-        if any(p.id == id_processo for p in self.processos):
-            print(f"Processo {id_processo} já existe")
+    def criar_processo(self, processo_id, tam_imagem):
+        if self.mp.ppt.processo_existe(processo_id):
+            print(f"Processo {processo_id} já existe")
             return
 
-        n_paginas = tam_imagem//self.mp.tam_quadro
+        if not self.ms.tem_espaco_suficiente(tam_imagem):
+            print(f"Espaço insuficiente na Memória Secundária, não foi possível criar processo {processo_id}")
+            return
+
+        n_paginas_processo = tam_imagem//self.mp.tam_quadro
+
+        # salva a imagem do processo todo na MS
+        end_inicial = self.ms.salvar(processo_id, n_paginas_processo, [""] * self.mp.tam_quadro)
+
+        # adiciona processo na principal process table
+        self.mp.ppt.adicionar_processo(processo_id)
+
+        # aloca um control block e a page table
+        pcb = ProcessControlBlock(processo_id, end_inicial)
+        pcb.page_table = PageTable(n_paginas_processo)
+        self.mp.process_control_blocks.append(pcb)
+
+        # traz as primeira pagina pra MP
+        self.carregar_pagina_mp(processo_id, 0)
 
         # 1 bit de presenca e 1 de modificacao
         # Usamos log na base 2 porque com 1024 quadros por exemplo, poderemos ter 10 bits para endereçar os quadros
         # tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
-
-        processo = Processo("Novo", id_processo, n_entradas_tp)
-        self.processos.append(processo)
-
-        if not self.ms.salvar(id_processo, n_paginas, [""]*self.mp.tam_quadro):
-            print(f"Espaço insuficiente na Memória Secundária, não foi possível criar processo {id_processo}")
-            self.processos.pop()
-            return
-
-        self.ms.mostrar()
 
 
     # Primeiro precisamos liberar as paginas presentes na MP, ou seja, os que estão na TP e depois na MS
@@ -62,9 +71,9 @@ class GerenciadorMemoria:
 
 
     def mostrar_tp(self, id_processo):
-        for i, processo in enumerate(self.processos):
-            if processo.id == id_processo:
-                self.processos[i].tp.mostrar()
+        for i, pcb in enumerate(self.mp.process_control_blocks):
+            if pcb.process_id == id_processo:
+                self.mp.process_control_blocks[i].mostrar()
 
 
     def traduzir_endereco(self, end_logico):
@@ -75,7 +84,7 @@ class GerenciadorMemoria:
         return n_pagina, offset
 
 
-    def transferir_mp(self, id_processo, n_pagina):
+    def carregar_pagina_mp(self, id_processo, n_pagina):
         quadro = self.ms.carregar(id_processo, n_pagina)
 
         if quadro is None:
@@ -87,7 +96,7 @@ class GerenciadorMemoria:
 
 
     def add_entrada_tp(self, m, id_processo, n_pagina):
-        novo_n_quadro = self.transferir_mp(id_processo, n_pagina)
+        novo_n_quadro = self.carregar_pagina_mp(id_processo, n_pagina)
 
         if novo_n_quadro is None:
             return None

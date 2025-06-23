@@ -1,59 +1,57 @@
-# Estrutura que mantem os dados e quadros armazenados
+from principal_process_table import PrincipalProcessTable
+
 class MemoriaPrincipal:
-    # inicializa uma entrada da MemoriaFisica
-    def __init__(self, n_quadros, tam_quadro):
-        self.n_quadros = n_quadros
+    def __init__(self, qtd_quadros, tam_quadro):
+        self.qtd_quadros = qtd_quadros
         self.tam_quadro = tam_quadro
         self.quadros = self.init_quadros()
 
+        self.quadros_livres = [i for i in range(qtd_quadros)]
+
+        self.ppt = PrincipalProcessTable()
+        self.process_control_blocks = []
+
+
     def init_quadros(self):
         quadros = []
-        for _ in range(self.n_quadros):
-            quadro = {
-                'Conteudo': [""] * self.tam_quadro,
-                'Processo': -1,
-                'Pagina': -1
-            }
+        for _ in range(self.qtd_quadros):
+            quadro = [""] * self.tam_quadro
             quadros.append(quadro)
+
         return quadros
 
-    def esta_cheio(self):
-        for i in range(self.n_quadros):
-            if self.quadros[i]['Processo'] == -1:
-                return False
 
-        return True
+    def esta_cheio(self):
+        return len(self.quadros_livres) == 0
+
 
     def ler(self, n_quadro):
         return self.quadros[n_quadro]
 
+
     def escrever(self, n_quadro, offset, conteudo):
-        if n_quadro >= self.n_quadros:
+        if n_quadro >= self.qtd_quadros:
             print("Endereço invalido")
-            return None
+            return
 
-        self.quadros[n_quadro]['Conteudo'][offset] = conteudo
+        self.quadros[n_quadro][offset] = conteudo
 
-    def alocar_quadro(self, processo, pagina, conteudo):
-        for i, quadro in enumerate(self.quadros):
-            if quadro['Pagina'] == -1:
-                quadro['Pagina'] = pagina
-                quadro['Processo'] = processo
-                quadro['Conteudo'] = conteudo
-                print(i)
-                return i
-        return -1
+
+    def alocar_quadro(self):
+        if self.esta_cheio():
+            return -1
+
+        end_quadro = self.quadros_livres.pop(0)
+        return end_quadro
+
 
     def liberar_quadro(self, id_quadro):
-        if id_quadro >= self.n_quadros:
+        if id_quadro >= self.qtd_quadros:
             print("Quadro inexistente")
             return
 
-        self.quadros[id_quadro] = {
-            'Conteudo': [""] * self.tam_quadro,
-            'Processo': -1,
-            'Pagina': -1
-        }
+        self.quadros_livres.append(id_quadro)
+
 
     def mostrar(self):
         print("Memoria Principal:")
