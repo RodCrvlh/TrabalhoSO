@@ -1,44 +1,48 @@
 import copy
 
-# Estrutura que mantem as paginas que não estão na memoria principal
 class MemoriaSecundaria:
     def __init__(self, tam_ms, tam_pagina):
         self.tam_ms = tam_ms
-        self.tam_pg = tam_pagina
+        self.tam_pagina = tam_pagina
+        self.qtd_blocos = self.tam_ms//self.tam_pagina
         self.dados = self.init_dados()
+
+        # define onde tem espaço livre
+        # 0 pra vazio, 1 pra usado
+        self.blocos_bitmap = '0' * self.qtd_blocos
+
 
     def init_dados(self):
         dados = []
-        tam_espaco = self.tam_ms//self.tam_pg
-        for _ in range(tam_espaco):
-            dado = {
-                'Conteudo': [""] * self.tam_pg,
-                'Processo': -1,  # qual processo essa pagina pertence
-                'Pagina': -1     # numero da pagina dentro do processo
-            }
+        for _ in range(self.qtd_blocos):
+            dado = [""] * self.tam_pagina
             dados.append(dado)
         return dados
 
-    def liberar_processo(self, id_processo):
-        for i, dado in enumerate(self.dados):
-            if dado['Processo'] == id_processo:
-                self.dados[i] = {
-                    'Conteudo': [""] * self.tam_pg,
-                    'Processo': -1,
-                    'Pagina': -1
-                }
 
-    def carregar(self, id_processo, n_pagina):
-        for i, dado in enumerate(self.dados):
-            if int(dado['Processo']) == id_processo and dado['Pagina'] == n_pagina:
-                novo_quadro = copy.deepcopy(dado)  # cria uma cópia do dado que não referencia o seu endereço original
-                self.dados[i]['Conteudo'] = [""] * self.tam_pg
-                self.dados[i]['Processo'] = -1
-                self.dados[i]['Pagina'] = -1
-                return novo_quadro
+    def alocar_espaco(self, qtd_paginas):
+        end_inicial = self.blocos_bitmap.find('0' * qtd_paginas)
 
-        print(f"Pagina {n_pagina} do processo {id_processo} não está na Memória Secundária")
-        return None
+        if end_inicial == -1:
+            return -1
+
+        for i in range(end_inicial, end_inicial + qtd_paginas):
+            self.blocos_bitmap[i] = 0
+        return bin(end_inicial)
+
+
+    def liberar_espaco(self, end_inicial, page_count):
+        for idx in range(end_inicial, end_inicial + page_count):
+            self.blocos_bitmap[idx] = '0'
+
+
+    def ler_bloco(self, end_pagina):
+       return copy.deepcopy(self.dados[end_pagina])
+
+
+    def escrever_pagina(self, end_pagina, pagina):
+        self.dados[end_pagina] = copy.deepcopy(pagina)
+
 
     def tem_espaco_suficiente(self, tam_imagem):
         if tam_imagem < self.tam_ms:
@@ -46,22 +50,22 @@ class MemoriaSecundaria:
         return False
 
 
-    def salvar(self, id_processo, n_paginas, conteudo):
-        end_inicial = -1
-        for idx, dado in enumerate(self.dados):
-            if dado['Processo'] == -1:
-                end_inicial = idx
-                self.dados[idx] = {
-                    'Conteudo': conteudo,
-                    'Processo': id_processo,
-                    'Pagina': idx
-                }
-                n_paginas -= 1
+    # def salvar(self, id_processo, n_paginas, conteudo):
+    #     end_inicial = -1
+    #     for idx, dado in enumerate(self.dados):
+    #         if dado['Processo'] == -1:
+    #             end_inicial = idx
+    #             self.dados[idx] = {
+    #                 'Conteudo': conteudo,
+    #                 'Processo': id_processo,
+    #                 'Pagina': idx
+    #             }
+    #             n_paginas -= 1
 
-            if n_paginas == 0:
-                break
+    #         if n_paginas == 0:
+    #             break
 
-        return end_inicial
+    #     return bin(end_inicial)
 
 
     def mostrar(self):
