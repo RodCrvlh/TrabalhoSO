@@ -1,6 +1,5 @@
-# Estrutura que mantem os dados e quadros amarzenados
+# Estrutura que mantem os dados e quadros armazenados
 class MemoriaPrincipal:
-
     # inicializa uma entrada da MemoriaFisica
     def __init__(self, n_quadros, tam_quadro):
         self.n_quadros = n_quadros
@@ -29,7 +28,6 @@ class MemoriaPrincipal:
         return self.quadros[n_quadro]
 
     def escrever(self, n_quadro, offset, conteudo):
-
         if n_quadro >= self.n_quadros:
             print("Endereço invalido")
             return None
@@ -37,7 +35,6 @@ class MemoriaPrincipal:
         self.quadros[n_quadro]['Conteudo'][offset] = conteudo
 
     def alocar_quadro(self, processo, pagina, conteudo):
-
         for i, quadro in enumerate(self.quadros):
             if quadro['Pagina'] == -1:
                 quadro['Pagina'] = pagina
@@ -48,7 +45,6 @@ class MemoriaPrincipal:
         return -1
 
     def liberar_quadro(self, id_quadro):
-
         if id_quadro >= self.n_quadros:
             print("Quadro inexistente")
             return
