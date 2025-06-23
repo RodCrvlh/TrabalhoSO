@@ -29,7 +29,7 @@ class GerenciadorMemoria:
 
     def criar_processo(self, n_entradas_tp, id_processo, tam_imagem):
 
-        for processo in enumerate(self.processos):
+        for processo in self.processos:
             if processo.id == id_processo:
                 print(f"Processo {id_processo} já existe")
                 return
