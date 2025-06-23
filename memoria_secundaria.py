@@ -1,7 +1,6 @@
 import copy
 
 # Estrutura que mantem as paginas que não estão na memoria principal
-
 class MemoriaSecundaria:
     def __init__(self, tam_ms, tam_pagina):
         self.tam_ms = tam_ms
@@ -24,7 +23,7 @@ class MemoriaSecundaria:
         for i, dado in enumerate(self.dados):
             if dado['Processo'] == id_processo:
                 self.dados[i] = {
-                    'Conteudo': [""]*self.tam_pg,
+                    'Conteudo': [""] * self.tam_pg,
                     'Processo': -1,
                     'Pagina': -1
                 }
@@ -41,10 +40,17 @@ class MemoriaSecundaria:
         print(f"Pagina {n_pagina} do processo {id_processo} não está na Memória Secundária")
         return None
 
-    def salvar(self, id_processo, n_paginas, conteudo):
+    def tem_espaco_suficiente(self, tam_imagem):
+        if tam_imagem < self.tam_ms:
+            return True
+        return False
 
+
+    def salvar(self, id_processo, n_paginas, conteudo):
+        end_inicial = -1
         for idx, dado in enumerate(self.dados):
             if dado['Processo'] == -1:
+                end_inicial = idx
                 self.dados[idx] = {
                     'Conteudo': conteudo,
                     'Processo': id_processo,
@@ -53,11 +59,10 @@ class MemoriaSecundaria:
                 n_paginas -= 1
 
             if n_paginas == 0:
-                return True
+                break
 
-        print(n_paginas)
-        print("Espaço insuficiente na Memoria Secundaria ")
-        return False
+        return end_inicial
+
 
     def mostrar(self):
         print("-------------------------------")
