@@ -4,9 +4,12 @@ from tabela_paginas import PageTable
 from process_control_block import ProcessControlBlock
 from politica_substituicao import PoliticaSubstituicao
 
+# 1 bit de presenca e 1 de modificacao
+# Usamos log na base 2 porque com 1024 quadros por exemplo, poderemos ter 10 bits para endereçar os quadros
+# tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
+
 class GerenciadorMemoria:
     def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico):
-        self.proximo_id_processo = 0
         self.mp = mem_principal
         self.ms = mem_sec
         self.tlb = tlb
@@ -45,27 +48,38 @@ class GerenciadorMemoria:
         self.mp.ppt.adicionar_processo(processo_id)
 
         # aloca um control block e a page table
-        pcb = ProcessControlBlock(processo_id, end_inicial)
+        pcb = ProcessControlBlock(processo_id, end_inicial, n_paginas_processo)
         pcb.page_table = PageTable(n_paginas_processo)
+
         self.mp.process_control_blocks.append(pcb)
+        end_pcb = self.mp.process_control_blocks.size - 1
+
+        # armazena o "endereço" do pcb na principal process table
+        self.mp.ppt.update_referencia_pcb(processo_id, end_pcb)
 
         # traz as primeira pagina pra MP
         self.carregar_pagina_mp(processo_id, 0)
 
-        # 1 bit de presenca e 1 de modificacao
-        # Usamos log na base 2 porque com 1024 quadros por exemplo, poderemos ter 10 bits para endereçar os quadros
-        # tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
 
-
-    # Primeiro precisamos liberar as paginas presentes na MP, ou seja, os que estão na TP e depois na MS
     def terminar_processo(self, id_processo):
-        self.ms.liberar_processo(id_processo)
-        for i, processo in enumerate(self.processos):
-            if processo.id == id_processo:
-                tp = processo.tp
-                for entrada in tp.entradas:
-                    self.mp.liberar_quadro(entrada['Quadro'])
-                break
+        if not self.mp.ppt.processo_existe(id_processo):
+            print(f"O Processo {id_processo} não existe")
+            return
+
+        end_control_block = self.mp.ppt.get_entrada_ppt(id_processo).pcb_end
+        pcb = self.mp.process_control_blocks[end_control_block]
+
+        # libera na memoria principal
+        for e in pcb.page_table.entradas:
+            if e['Presenca'] == 1:
+                self.mp.liberar_quadro(e['Quadro'])
+
+        # libera na memoria secundaria
+        self.ms.liberar_espaco(pcb.end_inicial, pcb.process_page_count, id_processo)
+
+        # limpa os dados do processo (exceto alguns metadados) e seta status para 'Exit'
+        pcb.end_process()
+
         self.ms.mostrar()
         self.mp.mostrar()
 
@@ -73,7 +87,7 @@ class GerenciadorMemoria:
     def mostrar_tp(self, id_processo):
         for i, pcb in enumerate(self.mp.process_control_blocks):
             if pcb.process_id == id_processo:
-                self.mp.process_control_blocks[i].mostrar()
+                self.mp.process_control_blocks[i].page_table.mostrar()
 
 
     def traduzir_endereco(self, end_logico):
@@ -85,14 +99,19 @@ class GerenciadorMemoria:
 
 
     def carregar_pagina_mp(self, id_processo, n_pagina):
-        quadro = self.ms.carregar(id_processo, n_pagina)
+        pcb_end = self.mp.ppt.get_entrada_ppt(id_processo).pcb_end
+        control_block = self.mp.process_control_blocks[pcb_end]
 
-        if quadro is None:
+
+
+        pagina = self.ms.carregar(id_processo, n_pagina)
+
+        if pagina is None:
             print(f"Página {n_pagina} do processo {id_processo} não encontrado na Memória Secundaria")
             return None
 
-        n_quadro = self.mp.alocar_quadro(quadro['Processo'], quadro['Pagina'], quadro['Conteudo'])
-        return n_quadro
+        quadro = self.mp.alocar_quadro(pagina['Processo'], pagina['Pagina'], pagina['Conteudo'])
+        return quadro
 
 
     def add_entrada_tp(self, m, id_processo, n_pagina):

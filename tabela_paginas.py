@@ -1,4 +1,4 @@
-class TP:
+class PageTable:
     def __init__(self, n_entradas):
         self.n_entradas = n_entradas
         self.entradas = self.init_entradas()
@@ -49,3 +49,7 @@ class TP:
     def mostrar(self):
         for item in self.entradas:
             print(item)
+
+    def esvaziar(self):
+        self.n_entradas = 0
+        self.entradas = []

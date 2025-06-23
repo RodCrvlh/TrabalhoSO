@@ -74,8 +74,7 @@ def main_code():
 
         elif opcao == 'C':
             tamanho = int(input("Digite o tamanho do processo:"))
-            id_processo = int(input("Digite o id do processo:"))
-            gm.criar_processo(n_entrada_tp, id_processo, tamanho)
+            gm.criar_processo(n_entrada_tp, tamanho)
 
         elif opcao == 'R':
             id_processo = int(input("Digite o id do processo:"))
