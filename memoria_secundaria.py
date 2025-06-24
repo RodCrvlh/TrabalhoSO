@@ -50,24 +50,6 @@ class MemoriaSecundaria:
         return False
 
 
-    # def salvar(self, id_processo, n_paginas, conteudo):
-    #     end_inicial = -1
-    #     for idx, dado in enumerate(self.dados):
-    #         if dado['Processo'] == -1:
-    #             end_inicial = idx
-    #             self.dados[idx] = {
-    #                 'Conteudo': conteudo,
-    #                 'Processo': id_processo,
-    #                 'Pagina': idx
-    #             }
-    #             n_paginas -= 1
-
-    #         if n_paginas == 0:
-    #             break
-
-    #     return bin(end_inicial)
-
-
     def mostrar(self):
         print("-------------------------------")
         print("Memoria Secundaria")

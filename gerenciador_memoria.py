@@ -38,7 +38,7 @@ class GerenciadorMemoria:
         n_paginas_processo = tam_imagem//self.mp.tam_quadro
 
         # salva a imagem do processo todo na MS
-        end_inicial = self.ms.salvar(processo_id, n_paginas_processo, [""] * self.mp.tam_quadro)
+        end_inicial = self.ms.alocar_espaco(n_paginas_processo)
 
         # adiciona processo na principal process table
         self.ppt.adicionar_processo(processo_id)
