@@ -14,3 +14,6 @@ class ProcessControlBlock:
         self.status = 'Exit'
         self.initial_execution_point_adress = -1
         self.page_table.esvaziar()
+
+    def pronto(self):
+        self.status = 'Ready'

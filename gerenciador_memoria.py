@@ -106,12 +106,20 @@ class GerenciadorMemoria:
             print(f"Página {n_pagina} do processo {id_processo} não encontrado na Memória Secundaria")
             return -1
 
-        # aloca o quadro na MP e escreve a página nele
+        # tenta alocar o quadro na MP
         numero_quadro = self.mp.alocar_quadro()
+
+        if numero_quadro == -1:
+            print('memoria cheia')
+
+        # escreve a página no quadro alocado
         self.mp.escrever_pagina(numero_quadro, pagina)
 
         # registra o quadro na page table do processo
         control_block.page_table.adicionar_pagina(n_pagina, numero_quadro)
+
+        # com a pagina carregada, define o processo como pronto
+        control_block.pronto()
 
         return numero_quadro
 
