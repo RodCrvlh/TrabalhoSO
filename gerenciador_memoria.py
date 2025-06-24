@@ -1,3 +1,5 @@
+import datetime as dt
+
 from tabela_paginas import PageTable
 from process_control_block import ProcessControlBlock
 from politica_substituicao import PoliticaSubstituicao
@@ -10,7 +12,8 @@ from MMU import MMU
 # tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
 
 class GerenciadorMemoria:
-    def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico, tam_quadro):
+    # politicas: 'lru', 'clock'
+    def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico, tam_quadro, politica_substituicao):
         self.mmu = MMU(tam_end_logico, tam_quadro)
 
         self.mp = mem_principal
@@ -20,7 +23,7 @@ class GerenciadorMemoria:
         self.ppt = PrincipalProcessTable()
         self.process_control_blocks = []
 
-        self.politica_sub = PoliticaSubstituicao()
+        self.politica_sub = politica_substituicao
 
 
     def criar_processo(self, processo_id, tam_imagem):
@@ -110,7 +113,11 @@ class GerenciadorMemoria:
         numero_quadro = self.mp.alocar_quadro()
 
         if numero_quadro == -1:
-            print('memoria cheia')
+            print('memoria cheia, iniciando substituição')
+            if self.politica_sub == 'LRU':
+                numero_quadro = self.substituir_LRU()
+            else:
+                numero_quadro = self.substituir_clock()
 
         # escreve a página no quadro alocado
         self.mp.escrever_pagina(numero_quadro, pagina)
@@ -178,3 +185,35 @@ class GerenciadorMemoria:
         n_quadro = self.busca_pagina(id_processo, n_pagina, None)
         quadro = self.mp.ler(n_quadro)
         return quadro['Conteudo'][offset]
+
+
+    def substituir_LRU(self):
+        oldest_timestamp = dt.datetime.now().timestamp()
+        oldest_entry = {}
+        oldest_initial_address = -1
+        oldest_num_pag = -1
+
+        # seleciona a página, dentre todos os processos, que não é acessada há mais tempo
+        for pcb in self.process_control_blocks:
+            for num_pag, entry in enumerate(pcb.page_table):
+                if entry["Tempo"] < oldest_timestamp:
+                    oldest_timestamp = entry["Tempo"]
+                    oldest_entry = entry
+                    oldest_num_pag = num_pag
+                    oldest_initial_address = pcb.initial_execution_point_adress
+
+        endereco_quadro = oldest_entry["Quadro"]
+
+        # se a página foi modificada, salva o estado atual dela no disco
+        if oldest_entry["Modificado"] == 1:
+            pagina = self.mp.ler_quadro(endereco_quadro)
+            self.ms.escrever_pagina(oldest_initial_address + oldest_num_pag, pagina)
+
+        # libera o quadro da tabela de paginas
+        oldest_entry["Presenca"] = 0
+
+        return endereco_quadro
+
+
+    def substituir_clock(self):
+        return -1

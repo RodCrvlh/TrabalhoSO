@@ -21,8 +21,12 @@ class MemoriaPrincipal:
         return len(self.quadros_livres) == 0
 
 
-    def ler(self, n_quadro):
-        return self.quadros[n_quadro]
+    def ler_quadro(self, n_quadro):
+        return self.quadros[n_quadro]\
+
+
+    def ler(self, n_quadro, offset):
+        return self.quadros[n_quadro][offset]
 
 
     def escrever(self, n_quadro, offset, conteudo):
@@ -41,11 +45,14 @@ class MemoriaPrincipal:
         self.quadros[n_quadro] = pagina
 
 
-    def alocar_quadro(self):
-        if self.esta_cheio():
+    def alocar_quadro(self, quadro = None):
+        if self.esta_cheio() or (quadro != None and quadro not in self.quadros_livres):
             return -1
 
-        end_quadro = self.quadros_livres.pop(0)
+        if (quadro != None):
+            end_quadro = self.quadros_livres.remove(quadro)
+        else:
+            end_quadro = self.quadros_livres.pop(0)
         return end_quadro
 
 
