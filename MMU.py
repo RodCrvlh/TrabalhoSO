@@ -16,3 +16,11 @@ class MMU:
             'offset': offset_bits
         }
         return end_logico
+
+
+    def traduzir_endereco(self, end_logico):
+        end_fisico = bin(end_logico)[2:].zfill(16)   # remove prefixo '0b'e preenche com zeros a esquerda
+        bits_pagina = self.end_logico['#Pagina']
+        n_pagina = int(end_fisico[:bits_pagina], 2)
+        offset = int(end_fisico[bits_pagina:self.end_logico['offset']], 2)
+        return n_pagina, offset

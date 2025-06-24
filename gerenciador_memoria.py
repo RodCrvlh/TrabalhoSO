@@ -87,14 +87,6 @@ class GerenciadorMemoria:
                 pcb.page_table.mostrar()
 
 
-    def traduzir_endereco(self, end_logico):
-        end_fisico = bin(end_logico)[2:].zfill(16)   # remove prefixo '0b'e preenche com zeros a esquerda
-        bits_pagina = self.mmu.end_logico['#Pagina']
-        n_pagina = int(end_fisico[:bits_pagina], 2)
-        offset = int(end_fisico[bits_pagina:self.mmu.end_logico['offset']], 2)
-        return n_pagina, offset
-
-
     def carregar_pagina_mp(self, id_processo, n_pagina):
         if not self.ppt.processo_existe(id_processo):
             print(f"O Processo {id_processo} não existe")
@@ -166,14 +158,14 @@ class GerenciadorMemoria:
 
 
     def escrita_memoria(self, id_processo, end_logico, conteudo):
-        n_pagina, offset = self.traduzir_endereco(end_logico)
+        n_pagina, offset = self.mmu.traduzir_endereco(end_logico)
 
         n_quadro = self.busca_pagina(id_processo, n_pagina, 1)
         self.mp.escrever(n_quadro, offset, conteudo)
 
 
     def leitura_memoria(self, id_processo, end_logico):
-        n_pagina, offset = self.traduzir_endereco(end_logico)
+        n_pagina, offset = self.mmu.traduzir_endereco(end_logico)
 
         n_quadro = self.busca_pagina(id_processo, n_pagina, None)
         quadro = self.mp.ler(n_quadro)
