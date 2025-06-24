@@ -14,31 +14,22 @@ class TLB:
                 'Presenca': 0,
                 'Modificacao': 0,
                 'Quadro': -1,
-                'Tempo': 0
             }
             entradas.append(entrada)
         return entradas
 
-    def aumentar_tempo(self, n_pagina):
 
-        for i in range(self.n_entradas):
-            if self.entradas[i]['Pagina'] != n_pagina and self.entradas[i]['Quadro'] != -1:
-                self.entradas[i]['Tempo'] += 1
-
-                # Busca nas entradas da TLB uma pagina especifica e também ve se é válida a pagina
     def buscar(self, n_pagina):
         for i, entrada in enumerate(self.entradas):
-
-            if entrada['Validade'] == 1 and entrada['Pagina'] == n_pagina:  # entrada encontrada
-                self.entradas[i]['Tempo'] = 0
-                self.aumentar_tempo(n_pagina)
+            if entrada['Validade'] == 1 and entrada['Pagina'] == n_pagina: # entrada encontrada
                 return self.entradas[i]['Quadro']
 
-            if entrada['Validade'] == 0 and entrada['Quadro'] == -1:  # entrada vazia
-                self.aumentar_tempo(n_pagina)
-                return -2
+        return -1 # entrada não encontrada
 
-        return -1   # entrada não encontrada
+
+    def ta_cheio(self):
+        return any(entrada["Validade"] == 0 and entrada["Quadro"] != -1 for entrada in self.entradas)
+
 
     def retirar_presenca(self, tempo):
         for entrada in self.entradas:

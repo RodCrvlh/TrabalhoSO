@@ -44,21 +44,21 @@ class PoliticaSubstituicao:
     def relogio(entradas):
         print(entradas)
 
-    def sub_tp(self, tabela, mp, ms, id_processo, bits_pagina, m):
+    # def sub_tp(self, tabela, mp, ms, id_processo, bits_pagina, m):
 
-        print("Falta de Pagina!")
+    #     print("Falta de Pagina!")
 
-        while True:
+    #     while True:
 
-            print("Escolha 1 para LRU e 2 para Relógio")
-            op = int(input())
+    #         print("Escolha 1 para LRU e 2 para Relógio")
+    #         op = int(input())
 
-            if op == 1:
-                return self.lru_tp(tabela, mp, ms, id_processo, bits_pagina, m)
-            elif op == 2:
-                return self.relogio(tabela)
-            else:
-                print("Digite as opções 1 ou 2!")
+    #         if op == 1:
+    #             return self.lru_tp(tabela, mp, ms, id_processo, bits_pagina, m)
+    #         elif op == 2:
+    #             return self.relogio(tabela)
+    #         else:
+    #             print("Digite as opções 1 ou 2!")
 
     def sub_tlb(self, tabela, mp, n_quadro, m):
 

@@ -37,6 +37,14 @@ class MemoriaPrincipal:
         self.quadros[n_quadro][offset] = conteudo
 
 
+    def escrever_pagina(self, n_quadro, pagina):
+        if n_quadro >= self.qtd_quadros:
+            print("Endereço invalido")
+            return
+
+        self.quadros[n_quadro] = pagina
+
+
     def alocar_quadro(self):
         if self.esta_cheio():
             return -1
