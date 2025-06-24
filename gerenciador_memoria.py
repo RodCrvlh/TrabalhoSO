@@ -1,37 +1,30 @@
-import math
-
 from tabela_paginas import PageTable
 from process_control_block import ProcessControlBlock
 from politica_substituicao import PoliticaSubstituicao
+from principal_process_table import PrincipalProcessTable
+
+from MMU import MMU
 
 # 1 bit de presenca e 1 de modificacao
 # Usamos log na base 2 porque com 1024 quadros por exemplo, poderemos ter 10 bits para endereçar os quadros
 # tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
 
 class GerenciadorMemoria:
-    def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico):
+    def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico, tam_quadro):
+        self.mmu = MMU(tam_end_logico, tam_quadro)
+
         self.mp = mem_principal
         self.ms = mem_sec
         self.tlb = tlb
 
+        self.ppt = PrincipalProcessTable()
+        self.process_control_blocks = []
+
         self.politica_sub = PoliticaSubstituicao()
-        self.end_logico = self.init_end_logico(tam_end_logico)
-
-
-    def init_end_logico(self, tam_end_logico):
-        tam_pg = self.mp.tam_quadro  # tamanho da pg = tamanho do quadro
-        offset_bits = int(math.log(tam_pg, 2))  # pega o numero de bits para offset
-        n_pagina_bits = int(tam_end_logico-offset_bits)
-
-        end_logico = {
-            '#Pagina': n_pagina_bits,
-            'offset': offset_bits
-        }
-        return end_logico
 
 
     def criar_processo(self, processo_id, tam_imagem):
-        if self.mp.ppt.processo_existe(processo_id):
+        if self.ppt.processo_existe(processo_id):
             print(f"Processo {processo_id} já existe")
             return
 
@@ -45,29 +38,29 @@ class GerenciadorMemoria:
         end_inicial = self.ms.salvar(processo_id, n_paginas_processo, [""] * self.mp.tam_quadro)
 
         # adiciona processo na principal process table
-        self.mp.ppt.adicionar_processo(processo_id)
+        self.ppt.adicionar_processo(processo_id)
 
         # aloca um control block e a page table
         pcb = ProcessControlBlock(processo_id, end_inicial, n_paginas_processo)
         pcb.page_table = PageTable(n_paginas_processo)
 
-        self.mp.process_control_blocks.append(pcb)
-        end_pcb = self.mp.process_control_blocks.size - 1
+        self.process_control_blocks.append(pcb)
+        end_pcb = len(self.process_control_blocks) - 1
 
         # armazena o "endereço" do pcb na principal process table
-        self.mp.ppt.update_referencia_pcb(processo_id, end_pcb)
+        self.ppt.update_referencia_pcb(processo_id, end_pcb)
 
         # traz as primeira pagina pra MP
         self.carregar_pagina_mp(processo_id, 0)
 
 
     def terminar_processo(self, id_processo):
-        if not self.mp.ppt.processo_existe(id_processo):
+        if not self.ppt.processo_existe(id_processo):
             print(f"O Processo {id_processo} não existe")
             return
 
-        end_control_block = self.mp.ppt.get_entrada_ppt(id_processo).pcb_end
-        pcb = self.mp.process_control_blocks[end_control_block]
+        end_control_block = self.ppt.get_entrada_ppt(id_processo).pcb_end
+        pcb = self.process_control_blocks[end_control_block]
 
         # libera na memoria principal
         for e in pcb.page_table.entradas:
@@ -85,31 +78,31 @@ class GerenciadorMemoria:
 
 
     def mostrar_tp(self, id_processo):
-        if not self.mp.ppt.processo_existe(id_processo):
+        if not self.ppt.processo_existe(id_processo):
             print(f"O Processo {id_processo} não existe")
             return
 
-        for pcb in self.mp.process_control_blocks:
+        for pcb in self.process_control_blocks:
             if pcb.process_id == id_processo:
                 pcb.page_table.mostrar()
 
 
     def traduzir_endereco(self, end_logico):
         end_fisico = bin(end_logico)[2:].zfill(16)   # remove prefixo '0b'e preenche com zeros a esquerda
-        bits_pagina = self.end_logico['#Pagina']
+        bits_pagina = self.mmu.end_logico['#Pagina']
         n_pagina = int(end_fisico[:bits_pagina], 2)
-        offset = int(end_fisico[bits_pagina:self.end_logico['offset']], 2)
+        offset = int(end_fisico[bits_pagina:self.mmu.end_logico['offset']], 2)
         return n_pagina, offset
 
 
     def carregar_pagina_mp(self, id_processo, n_pagina):
-        if not self.mp.ppt.processo_existe(id_processo):
+        if not self.ppt.processo_existe(id_processo):
             print(f"O Processo {id_processo} não existe")
             return -1
 
         # pega o process control block
-        pcb_end = self.mp.ppt.get_entrada_ppt(id_processo).pcb_end
-        control_block = self.mp.process_control_blocks[pcb_end]
+        pcb_end = self.ppt.get_entrada_ppt(id_processo).pcb_end
+        control_block = self.process_control_blocks[pcb_end]
 
         # calcula o endereço da pagina na memoria secundária
         endereco_ms = control_block.initial_execution_point_adress + n_pagina
@@ -132,7 +125,7 @@ class GerenciadorMemoria:
 
 
     def busca_pagina(self, id_processo, n_pagina, m):
-        if not self.mp.ppt.processo_existe(id_processo):
+        if not self.ppt.processo_existe(id_processo):
             print(f"O Processo {id_processo} não existe")
             return
 
@@ -143,8 +136,8 @@ class GerenciadorMemoria:
             print("TLB hit!")
             return num_quadro_tlb
 
-        pcb_end = self.mp.ppt.get_entrada_ppt(id_processo).pcb_end
-        control_block = self.mp.process_control_blocks[pcb_end]
+        pcb_end = self.ppt.get_entrada_ppt(id_processo).pcb_end
+        control_block = self.process_control_blocks[pcb_end]
 
         # busca o quadro na tabela de paginas
         num_quadro_tp = control_block.page_table.buscar_quadro(n_pagina)

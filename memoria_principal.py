@@ -1,4 +1,3 @@
-from principal_process_table import PrincipalProcessTable
 
 class MemoriaPrincipal:
     def __init__(self, qtd_quadros, tam_quadro):
@@ -7,9 +6,6 @@ class MemoriaPrincipal:
         self.quadros = self.init_quadros()
 
         self.quadros_livres = [i for i in range(qtd_quadros)]
-
-        self.ppt = PrincipalProcessTable()
-        self.process_control_blocks = []
 
 
     def init_quadros(self):
