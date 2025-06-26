@@ -5,7 +5,7 @@ from memoria_principal import MemoriaPrincipal
 from memoria_secundaria import MemoriaSecundaria
 
 from page_table import PageTable
-from page_frame_data_entry import FrameTableEntry, PageState
+from frame_table_entry import FrameTableEntry, PageState
 from process_control_block import ProcessControlBlock, ProcessState
 
 from translation_lookaside_buffer import TLB
