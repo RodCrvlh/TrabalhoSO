@@ -1,5 +1,8 @@
 import math
 
+from tkinter import *
+from tkinter import ttk
+
 from gerenciador_memoria import GerenciadorMemoria
 from translation_lookaside_buffer import TLB
 
