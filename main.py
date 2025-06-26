@@ -6,39 +6,8 @@ from translation_lookaside_buffer import TLB
 from memoria_principal import MemoriaPrincipal
 from memoria_secundaria import MemoriaSecundaria
 
-# Initialization
-import pyray as pr
 
 def main():
-    screen_width = 800
-    screen_height = 450
-    title = "Resizable Window Example"
-
-    # Set the window flag for resizable
-    pr.set_config_flags(pr.ConfigFlags.FLAG_WINDOW_RESIZABLE)
-    pr.init_window(screen_width, screen_height, title)
-    pr.set_target_fps(120)
-
-    while not pr.window_should_close():
-        if pr.is_window_resized():
-            print(f"Window was resized to: {pr.get_screen_width()}x{pr.get_screen_height()}")
-
-        # Draw
-        pr.begin_drawing()
-        pr.clear_background(pr.Color(200, 200, 200, 255)) # Light gray background
-
-
-
-        pr.end_drawing()
-
-    pr.close_window()
-
-
-if __name__ == "__main__":
-    main()
-
-
-def main_code():
     tam_quadro = int(input("Defina o tamanho do quadro/página:"))
     tam_end_logico = int(input("Digite o tamanho em bits do endereço lógico:"))
     n_entrada_tlb = int(input("Digite o numero de entradas da TLB:"))
@@ -96,3 +65,7 @@ def main_code():
 
         else:
             print("Digite um numero referente as opcoes.")
+
+
+if __name__ == "__main__":
+    main()
