@@ -318,10 +318,9 @@ class GerenciadorMemoria:
 
         self.quadros_livres.append(end_quadro)
 
-    def substituir_tlb(self):
-        return
-
-
+    #
+    ### Politicas de substituicao
+    #
     def substituir_LRU(self) -> int:
         oldest_timestamp = dt.datetime.now().timestamp()
         oldest_frame_number = 0
