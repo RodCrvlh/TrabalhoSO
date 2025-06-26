@@ -255,15 +255,9 @@ class GerenciadorMemoria:
             print("quadro não encontrado")
             return -1
 
-        if self.tlb.ta_cheio():
-            print("TLB cheia, substituindo.")
-            self.substituir_tlb() # PLACEHOLDER
-            # self.politica_sub.sub_tlb(self.tlb, self.mp, num_quadro, m)
-            self.tlb.mostrar()
-        else:
-            print("TLB ainda não está cheia! Adicionando entrada.")
-            self.tlb.atualizar(num_pagina, 1, 0, num_quadro)
-            self.tlb.mostrar()
+        print("Atualizando TLB")
+        self.tlb.atualizar(num_pagina, 1, 0, num_quadro)
+        self.tlb.mostrar()
 
         return num_quadro
 
@@ -308,7 +302,6 @@ class GerenciadorMemoria:
 
 
     def liberar_quadro_mp(self, end_quadro):
-        # PLACEHOLDER: condição simplificada
         if end_quadro >= self.mp.qtd_quadros:
             print("Quadro inexistente")
             return
