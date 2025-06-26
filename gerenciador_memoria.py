@@ -16,7 +16,7 @@ from translation_lookaside_buffer import TLB
 
 class GerenciadorMemoria:
     # politicas: 'lru', 'clock'
-    def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico, tam_quadro, politica_substituicao):
+    def __init__(self, tlb: TLB, mem_principal: MemoriaPrincipal, mem_sec: MemoriaSecundaria, tam_end_logico: int, tam_quadro: int, politica_substituicao: str):
         self.mmu = MemoryManagementUnit(tam_end_logico, tam_quadro)
 
         self.mp: MemoriaPrincipal = mem_principal
