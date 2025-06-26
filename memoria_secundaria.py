@@ -28,7 +28,7 @@ class MemoriaSecundaria:
 
         for i in range(end_inicial, end_inicial + qtd_paginas):
             self.blocos_bitmap[i] = 0
-        return bin(end_inicial)
+        return end_inicial
 
 
     def liberar_espaco(self, end_inicial, page_count):
@@ -40,24 +40,25 @@ class MemoriaSecundaria:
        return copy.deepcopy(self.dados[end_pagina])
 
 
-    def escrever_pagina(self, end_pagina, pagina):
-        self.dados[end_pagina] = copy.deepcopy(pagina)
+    def escrever_pagina(self, endereco_bloco, pagina):
+        self.dados[endereco_bloco] = copy.deepcopy(pagina)
 
 
-    def tem_espaco_suficiente(self, tam_imagem):
-        if tam_imagem < self.tam_ms:
+    # limitação: checa apenas se tem espaço contíguo. MS sujeita a fragmentação externa
+    def tem_espaco_suficiente(self, qtd_paginas):
+        if self.blocos_bitmap.find('0' * qtd_paginas) > -1:
             return True
         return False
 
 
-    def mostrar(self):
-        print("-------------------------------")
-        print("Memoria Secundaria")
+    # def mostrar(self):
+    #     print("-------------------------------")
+    #     print("Memoria Secundaria")
 
-        for i, dado in enumerate(self.dados):
-            if dado['Pagina'] == -1:
-                print(f"Espaço{i}: Livre")
-            else:
-                print(f"Espaço {i}: Pagina {dado['Pagina']}, Processo {dado['Processo']}, Conteudo:{dado['Conteudo']}")
+    #     for i, dado in enumerate(self.dados):
+    #         if dado['Pagina'] == -1:
+    #             print(f"Espaço{i}: Livre")
+    #         else:
+    #             print(f"Espaço {i}: Pagina {dado['Pagina']}, Processo {dado['Processo']}, Conteudo:{dado['Conteudo']}")
 
-        print("--------------------------------")
+    #     print("--------------------------------")

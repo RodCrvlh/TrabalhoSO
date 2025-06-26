@@ -1,6 +1,6 @@
 import math
 
-class MMU:
+class MemoryManagementUnit:
     def __init__(self, tam_end_logico, tam_quadro):
         self.end_logico = self.init_end_logico(tam_end_logico)
         self.tam_quadro = tam_quadro

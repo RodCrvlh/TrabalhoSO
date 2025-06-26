@@ -1,3 +1,4 @@
+# LEGACY
 class PoliticaSubstituicao:
     @staticmethod
     def lru_tp(tp, mp, ms, id_processo, n_pagina, m):

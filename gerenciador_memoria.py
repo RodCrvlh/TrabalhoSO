@@ -1,11 +1,14 @@
 import datetime as dt
 
-from tabela_paginas import PageTable
-from process_control_block import ProcessControlBlock
-from politica_substituicao import PoliticaSubstituicao
-from principal_process_table import PrincipalProcessTable
+from MMU import MemoryManagementUnit
+from memoria_principal import MemoriaPrincipal
+from memoria_secundaria import MemoriaSecundaria
 
-from MMU import MMU
+from page_table import PageTable
+from page_frame_data_entry import FrameTableEntry, PageState
+from process_control_block import ProcessControlBlock, ProcessState
+
+from translation_lookaside_buffer import TLB
 
 # 1 bit de presenca e 1 de modificacao
 # Usamos log na base 2 porque com 1024 quadros por exemplo, poderemos ter 10 bits para endereçar os quadros
@@ -14,147 +17,239 @@ from MMU import MMU
 class GerenciadorMemoria:
     # politicas: 'lru', 'clock'
     def __init__(self, tlb, mem_principal, mem_sec, tam_end_logico, tam_quadro, politica_substituicao):
-        self.mmu = MMU(tam_end_logico, tam_quadro)
+        self.mmu = MemoryManagementUnit(tam_end_logico, tam_quadro)
 
-        self.mp = mem_principal
-        self.ms = mem_sec
-        self.tlb = tlb
+        self.mp: MemoriaPrincipal = mem_principal
+        self.ms: MemoriaSecundaria = mem_sec
+        self.tlb: TLB = tlb
 
-        self.ppt = PrincipalProcessTable()
-        self.process_control_blocks = []
+        # no linux, todos os processos são indexados em uma tabela hash chamada pidhash
+        self.pid_hash: dict[str, ProcessControlBlock] = {}
+
+        self.ready_queue_head: ProcessControlBlock | None = None
+        self.blocked_queue_head: ProcessControlBlock | None = None
+
+        # estrutura indexada pelo frame number que descreve todos os frames (quadros) da memória principal.
+        # é utilizado pelos algoritmos de substituição. no linux, é equivalente ao mem_map. o windows usa o PFN Database
+        self.frame_table: list[FrameTableEntry] = []
+        self.clock_pointer = 0
+
+        # lista com os índices de quadros livres
+        self.quadros_livres: list[int] = []
+
+        # preenche a frame table com estados iniciais
+        for i in range(self.mp.qtd_quadros):
+            self.frame_table.append(FrameTableEntry())
+            self.quadros_livres.append(i)
 
         self.politica_sub = politica_substituicao
 
 
-    def criar_processo(self, processo_id, tam_imagem):
-        if self.ppt.processo_existe(processo_id):
-            print(f"Processo {processo_id} já existe")
+    def criar_processo(self, id_processo: str, tam_imagem):
+        if self.pid_hash.get(id_processo):
+            print(f"Processo {id_processo} já existe")
             return
 
-        if not self.ms.tem_espaco_suficiente(tam_imagem):
-            print(f"Espaço insuficiente na Memória Secundária, não foi possível criar processo {processo_id}")
+        qtd_paginas_processo = tam_imagem//self.mp.tam_quadro
+
+        if not self.ms.tem_espaco_suficiente(qtd_paginas_processo):
+            print(f"Espaço insuficiente na Memória Secundária, não foi possível criar processo {id_processo}")
             return
 
-        n_paginas_processo = tam_imagem//self.mp.tam_quadro
+        # cria a imagem do processo todo na MS
+        end_inicial = self.ms.alocar_espaco(qtd_paginas_processo)
 
-        # salva a imagem do processo todo na MS
-        end_inicial = self.ms.alocar_espaco(n_paginas_processo)
+        # cria o control block e adiciona ele na pid_hash
+        pcb = ProcessControlBlock(id_processo, end_inicial, qtd_paginas_processo)
+        self.pid_hash.update(id_processo = pcb)
 
-        # adiciona processo na principal process table
-        self.ppt.adicionar_processo(processo_id)
+        pcb.alloc_page_table(PageTable(qtd_paginas_processo))
 
-        # aloca um control block e a page table
-        pcb = ProcessControlBlock(processo_id, end_inicial, n_paginas_processo)
-        pcb.page_table = PageTable(n_paginas_processo)
-
-        self.process_control_blocks.append(pcb)
-        end_pcb = len(self.process_control_blocks) - 1
-
-        # armazena o "endereço" do pcb na principal process table
-        self.ppt.update_referencia_pcb(processo_id, end_pcb)
+        # admite o processo
+        self.set_process_ready(pcb.pid)
 
         # traz as primeira pagina pra MP
-        self.carregar_pagina_mp(processo_id, 0)
+        self.carregar_pagina_pra_mp(id_processo, 0)
+
+    # tira o processo da lista passada e retorna a cabeça da lista
+    def pop_process(self, process: ProcessControlBlock, queue_head: ProcessControlBlock | None):
+        if process.prev == None:
+            queue_head = process.next
+            process.next = None
+            return queue_head
+
+        process.prev.next = process.next
+        process.prev = None
+        process.next = None
+        return queue_head
+
+    # coloca o processo no final da lista passada e returna a cabeça da lista
+    def append_process(self, process: ProcessControlBlock, queue_head: ProcessControlBlock | None):
+        if not queue_head:
+            return process
+
+        last = queue_head
+        while last.next != None:
+            last = last.next
+
+        last.next = process
+        process.prev = last
+        return queue_head
+
+    # define o processo como pronto, colocando-o na fila de pronto
+    def set_process_ready(self, process_id):
+        pcb = self.pid_hash.get(process_id)
+
+        if not pcb:
+            print(f"O Processo {process_id} não existe")
+            return
+
+        if pcb.state == ProcessState.READY:
+            print(f"O Processo {process_id} já estava pronto")
+            return
+
+        if pcb.state == ProcessState.BLOCKED:
+            self.blocked_queue_head = self.pop_process(pcb, self.blocked_queue_head)
+
+        pcb.set_ready()
+        self.ready_queue_head = self.append_process(pcb, self.ready_queue_head)
+
+    # define o processo como bloqueado, colocando-o na fila de bloqueado
+    def set_process_blocked(self, process_id):
+        pcb = self.pid_hash.get(process_id)
+
+        if not pcb:
+            print(f"O Processo {process_id} não existe")
+            return
+
+        if pcb.state == ProcessState.BLOCKED:
+            self.blocked_queue_head = self.pop_process(pcb, self.blocked_queue_head)
+
+        if pcb.state == ProcessState.BLOCKED:
+            self.ready_queue_head = self.pop_process(pcb, self.ready_queue_head)
+
+        pcb.block()
+        self.blocked_queue_head = self.append_process(pcb, self.blocked_queue_head)
 
 
     def terminar_processo(self, id_processo):
-        if not self.ppt.processo_existe(id_processo):
+        pcb = self.pid_hash.get(id_processo)
+
+        if not pcb:
             print(f"O Processo {id_processo} não existe")
             return
 
-        end_control_block = self.ppt.get_entrada_ppt(id_processo).pcb_end
-        pcb = self.process_control_blocks[end_control_block]
+        # tira da fila, se ele estiver em alguma
+        if pcb.state == ProcessState.BLOCKED:
+            self.blocked_queue_head = self.pop_process(pcb, self.blocked_queue_head)
+
+        if pcb.state == ProcessState.READY:
+            self.ready_queue_head = self.pop_process(pcb, self.ready_queue_head)
+
+        # se não tem nem page table, não tem nada alocado, só ignora
+        if not pcb.page_table:
+            return
 
         # libera na memoria principal
         for e in pcb.page_table.entradas:
-            if e['Presenca'] == 1:
-                self.mp.liberar_quadro(e['Quadro'])
+            if e.presenca == 1:
+                self.liberar_quadro_mp(e.quadro)
 
         # libera na memoria secundaria
-        self.ms.liberar_espaco(pcb.end_inicial, pcb.process_page_count, id_processo)
+        self.ms.liberar_espaco(pcb.image_address, pcb.process_page_count)
 
         # limpa os dados do processo (exceto alguns metadados) e seta status para 'Exit'
         pcb.end_process()
 
-        self.ms.mostrar()
-        self.mp.mostrar()
+
+    def move_clock(self):
+        if self.clock_pointer < len(self.frame_table):
+            self.clock += 1
+
+        if self.clock_pointer == len(self.frame_table):
+            self.clock = 0
 
 
-    def mostrar_tp(self, id_processo):
-        if not self.ppt.processo_existe(id_processo):
-            print(f"O Processo {id_processo} não existe")
-            return
+    def carregar_pagina_pra_mp(self, id_processo, num_pagina):
+        # pega o process control block
+        pcb = self.pid_hash.get(id_processo)
 
-        for pcb in self.process_control_blocks:
-            if pcb.process_id == id_processo:
-                pcb.page_table.mostrar()
-
-
-    def carregar_pagina_mp(self, id_processo, n_pagina):
-        if not self.ppt.processo_existe(id_processo):
+        if not pcb:
             print(f"O Processo {id_processo} não existe")
             return -1
 
-        # pega o process control block
-        pcb_end = self.ppt.get_entrada_ppt(id_processo).pcb_end
-        control_block = self.process_control_blocks[pcb_end]
-
         # calcula o endereço da pagina na memoria secundária
-        endereco_ms = control_block.initial_execution_point_adress + n_pagina
+        # PLACEHOLDER: TEM Q ARRUMAR ESSA FORMULA
+        endereco_ms = pcb.image_address + num_pagina
 
         # lê a página da MS
         pagina = self.ms.ler_bloco(endereco_ms)
 
         if pagina is None:
-            print(f"Página {n_pagina} do processo {id_processo} não encontrado na Memória Secundaria")
+            print(f"Página {num_pagina} do processo {id_processo} não encontrado na Memória Secundaria")
             return -1
 
         # tenta alocar o quadro na MP
-        numero_quadro = self.mp.alocar_quadro()
+        endereco_quadro = self.alocar_quadro_mp()
 
-        if numero_quadro == -1:
+        if endereco_quadro == -1:
             print('memoria cheia, iniciando substituição')
             if self.politica_sub == 'LRU':
-                numero_quadro = self.substituir_LRU()
+                endereco_quadro = self.substituir_LRU()
             else:
-                numero_quadro = self.substituir_clock()
+                endereco_quadro = self.substituir_clock()
 
         # escreve a página no quadro alocado
-        self.mp.escrever_pagina(numero_quadro, pagina)
+        self.mp.escrever_pagina(endereco_quadro, pagina)
+
+        # se o processo não tem page table por algum motivo, aborta e libera o quadro alocado
+        if not pcb.page_table:
+            print(f"Processo {id_processo} não tem tabela de páginas alocadas. Liberando o quadro alocado e abortando operação.")
+            self.liberar_quadro_mp(endereco_quadro)
+            return -1
 
         # registra o quadro na page table do processo
-        control_block.page_table.adicionar_pagina(n_pagina, numero_quadro)
+        pcb.page_table.adicionar_pagina(num_pagina, endereco_quadro)
+
+        # conecta essa pagina adicionada
+        self.frame_table[endereco_quadro].setup(PageState.ACTIVE, pcb, endereco_ms)
+        self.frame_table[endereco_quadro].mark_used()
+        self.move_clock()
 
         # com a pagina carregada, define o processo como pronto
-        control_block.pronto()
+        pcb.set_ready()
 
-        return numero_quadro
+        return endereco_quadro
 
 
-    def busca_pagina(self, id_processo, n_pagina, m):
-        if not self.ppt.processo_existe(id_processo):
+    def busca_pagina(self, id_processo, num_pagina):
+        # pega o process control block
+        pcb = self.pid_hash.get(id_processo)
+
+        if not pcb:
             print(f"O Processo {id_processo} não existe")
-            return
+            return -1
 
         # procura se a pagina esta na tlb
-        num_quadro_tlb = self.tlb.buscar(n_pagina)
+        num_quadro_tlb = self.tlb.buscar(num_pagina)
 
         if num_quadro_tlb != -1:
             print("TLB hit!")
             return num_quadro_tlb
 
-        pcb_end = self.ppt.get_entrada_ppt(id_processo).pcb_end
-        control_block = self.process_control_blocks[pcb_end]
+        if not pcb.page_table:
+            print(f"Processo {id_processo} não tinha page table. Busca de página abortada.")
+            return -1
 
         # busca o quadro na tabela de paginas
-        num_quadro_tp = control_block.page_table.buscar_quadro(n_pagina)
+        num_quadro_tp = pcb.page_table.buscar_quadro(num_pagina)
 
         if num_quadro_tp != -1:
             print("TP hit!")
             num_quadro = num_quadro_tp
         else:
             # se não achou, carrega da MS -> MP -> TP
-            num_quadro = self.carregar_pagina_mp(id_processo, n_pagina)
+            num_quadro = self.carregar_pagina_pra_mp(id_processo, num_pagina)
 
         if num_quadro == -1:
             print("quadro não encontrado")
@@ -162,58 +257,119 @@ class GerenciadorMemoria:
 
         if self.tlb.ta_cheio():
             print("TLB cheia, substituindo.")
-            self.politica_sub.sub_tlb(self.tlb, self.mp, num_quadro, m)
+            self.substituir_tlb() # PLACEHOLDER
+            # self.politica_sub.sub_tlb(self.tlb, self.mp, num_quadro, m)
             self.tlb.mostrar()
         else:
             print("TLB ainda não está cheia! Adicionando entrada.")
-            self.tlb.atualizar(n_pagina, 1, 0, num_quadro)
+            self.tlb.atualizar(num_pagina, 1, 0, num_quadro)
             self.tlb.mostrar()
 
         return num_quadro
 
 
     def escrita_memoria(self, id_processo, end_logico, conteudo):
-        n_pagina, offset = self.mmu.traduzir_endereco(end_logico)
+        num_pagina, offset = self.mmu.traduzir_endereco(end_logico)
 
-        n_quadro = self.busca_pagina(id_processo, n_pagina, 1)
-        self.mp.escrever(n_quadro, offset, conteudo)
+        num_quadro = self.busca_pagina(id_processo, num_pagina)
+
+        fte = self.frame_table[num_quadro]
+        fte.mark_used()
+        fte.check_modified()
+
+        self.mp.escrever(num_quadro, offset, conteudo)
 
 
     def leitura_memoria(self, id_processo, end_logico):
-        n_pagina, offset = self.mmu.traduzir_endereco(end_logico)
+        num_pagina, offset = self.mmu.traduzir_endereco(end_logico)
 
-        n_quadro = self.busca_pagina(id_processo, n_pagina, None)
-        quadro = self.mp.ler(n_quadro)
-        return quadro['Conteudo'][offset]
+        num_quadro = self.busca_pagina(id_processo, num_pagina)
+
+        fte = self.frame_table[num_quadro]
+        fte.mark_used()
+
+        quadro = self.mp.ler(num_quadro, offset)
+        return quadro[offset]
 
 
-    def substituir_LRU(self):
-        oldest_timestamp = dt.datetime.now().timestamp()
-        oldest_entry = {}
-        oldest_initial_address = -1
-        oldest_num_pag = -1
+    def mp_cheia(self):
+        return len(self.quadros_livres) == 0
 
-        # seleciona a página, dentre todos os processos, que não é acessada há mais tempo
-        for pcb in self.process_control_blocks:
-            for num_pag, entry in enumerate(pcb.page_table):
-                if entry["Tempo"] < oldest_timestamp:
-                    oldest_timestamp = entry["Tempo"]
-                    oldest_entry = entry
-                    oldest_num_pag = num_pag
-                    oldest_initial_address = pcb.initial_execution_point_adress
 
-        endereco_quadro = oldest_entry["Quadro"]
+    def alocar_quadro_mp(self) -> int:
+        if self.mp_cheia():
+            print("MP está cheia! Não foi possível alocar um quadro.")
+            return -1
 
-        # se a página foi modificada, salva o estado atual dela no disco
-        if oldest_entry["Modificado"] == 1:
-            pagina = self.mp.ler_quadro(endereco_quadro)
-            self.ms.escrever_pagina(oldest_initial_address + oldest_num_pag, pagina)
-
-        # libera o quadro da tabela de paginas
-        oldest_entry["Presenca"] = 0
+        endereco_quadro = self.quadros_livres.pop()
+        self.frame_table[endereco_quadro].iniciar_alocacao()
 
         return endereco_quadro
 
 
-    def substituir_clock(self):
-        return -1
+    def liberar_quadro_mp(self, end_quadro):
+        # PLACEHOLDER: condição simplificada
+        if end_quadro >= self.mp.qtd_quadros:
+            print("Quadro inexistente")
+            return
+
+        fte = self.frame_table[end_quadro]
+        fte.liberar()
+
+        self.quadros_livres.append(end_quadro)
+
+    def substituir_tlb(self):
+        return
+
+
+    def substituir_LRU(self) -> int:
+        oldest_timestamp = dt.datetime.now().timestamp()
+        oldest_frame_number = 0
+
+        # seleciona a página, dentre todos os frames, q não é acessada há mais tempo
+        for frame_number, fte in enumerate(self.frame_table):
+            if fte.timestamp < oldest_timestamp:
+                oldest_timestamp = fte.timestamp
+                oldest_frame_number = frame_number
+
+        fte_vitima = self.frame_table[oldest_frame_number]
+
+        if not fte_vitima.owner_process or not fte_vitima.pte:
+            return -1
+
+        # se a página foi modificada, salva o estado atual dela no disco
+        if fte_vitima.modified == 1:
+            pagina = self.mp.ler_quadro(oldest_frame_number)
+            endereco = fte_vitima.owner_process.image_address + fte_vitima.virtual_page_number
+            self.ms.escrever_pagina(endereco, pagina)
+
+        # libera o quadro da tabela de paginas e da frame table
+        fte_vitima.pte.tira_presenca()
+        fte_vitima.liberar()
+
+        return oldest_frame_number
+
+
+    def substituir_clock(self) -> int:
+        # enquanto achar 1 no bit used, vai movendo o clock e trocando todo 1 pra 0
+        while self.frame_table[self.clock_pointer].used != 0:
+            self.frame_table[self.clock_pointer].unmark_used()
+            self.move_clock()
+
+        # quando achar um used = 0, essa faz o processo pra salvar a página na MS e
+        # liberar a vítima
+        fte_vitima = self.frame_table[self.clock_pointer]
+
+        if not fte_vitima.owner_process or not fte_vitima.pte:
+            return -1
+
+        # se a página foi modificada, salva o estado atual dela no disco
+        if fte_vitima.modified == 1:
+            pagina = self.mp.ler_quadro(self.clock_pointer)
+            endereco = fte_vitima.owner_process.image_address + fte_vitima.virtual_page_number
+            self.ms.escrever_pagina(endereco, pagina)
+
+        fte_vitima.pte.tira_presenca()
+        fte_vitima.liberar()
+
+        return self.clock_pointer
