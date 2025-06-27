@@ -14,6 +14,7 @@ from translation_lookaside_buffer import TLB
 # Usamos log na base 2 porque com 1024 quadros por exemplo, poderemos ter 10 bits para endereçar os quadros
 # tam_entrada_tp = 2 + math.log(self.mp.n_quadros, 2)
 
+
 class GerenciadorMemoria:
     # politicas: 'lru', 'clock'
     def __init__(self, tlb: TLB, mem_principal: MemoriaPrincipal, mem_sec: MemoriaSecundaria, tam_end_logico: int, tam_quadro: int, politica_substituicao: str):
@@ -43,7 +44,6 @@ class GerenciadorMemoria:
             self.quadros_livres.append(i)
 
         self.politica_sub = politica_substituicao
-
 
     def criar_processo(self, id_processo: str, tam_imagem):
         if self.pid_hash.get(id_processo):
@@ -131,7 +131,6 @@ class GerenciadorMemoria:
         pcb.block()
         self.blocked_queue_head = self.append_process(pcb, self.blocked_queue_head)
 
-
     def terminar_processo(self, id_processo):
         pcb = self.pid_hash.get(id_processo)
 
@@ -161,14 +160,12 @@ class GerenciadorMemoria:
         # limpa os dados do processo (exceto alguns metadados) e seta status para 'Exit'
         pcb.end_process()
 
-
     def move_clock(self):
         if self.clock_pointer < len(self.frame_table):
             self.clock += 1
 
         if self.clock_pointer == len(self.frame_table):
             self.clock = 0
-
 
     def carregar_pagina_pra_mp(self, id_processo, num_pagina):
         # pega o process control block
@@ -221,7 +218,6 @@ class GerenciadorMemoria:
 
         return endereco_quadro
 
-
     def busca_pagina(self, id_processo, num_pagina):
         # pega o process control block
         pcb = self.pid_hash.get(id_processo)
@@ -261,7 +257,6 @@ class GerenciadorMemoria:
 
         return num_quadro
 
-
     def escrita_memoria(self, id_processo, end_logico, conteudo):
         num_pagina, offset = self.mmu.traduzir_endereco(end_logico)
 
@@ -272,7 +267,6 @@ class GerenciadorMemoria:
         fte.check_modified()
 
         self.mp.escrever(num_quadro, offset, conteudo)
-
 
     def leitura_memoria(self, id_processo, end_logico):
         num_pagina, offset = self.mmu.traduzir_endereco(end_logico)
@@ -285,10 +279,8 @@ class GerenciadorMemoria:
         quadro = self.mp.ler(num_quadro, offset)
         return quadro[offset]
 
-
     def mp_cheia(self):
         return len(self.quadros_livres) == 0
-
 
     def alocar_quadro_mp(self) -> int:
         if self.mp_cheia():
@@ -299,7 +291,6 @@ class GerenciadorMemoria:
         self.frame_table[endereco_quadro].iniciar_alocacao()
 
         return endereco_quadro
-
 
     def liberar_quadro_mp(self, end_quadro):
         if end_quadro >= self.mp.qtd_quadros:
@@ -312,8 +303,9 @@ class GerenciadorMemoria:
         self.quadros_livres.append(end_quadro)
 
     #
-    ### Politicas de substituicao
+    # Politicas de substituicao
     #
+
     def substituir_LRU(self) -> int:
         oldest_timestamp = dt.datetime.now().timestamp()
         oldest_frame_number = 0
@@ -341,6 +333,11 @@ class GerenciadorMemoria:
 
         return oldest_frame_number
 
+    def executar_instrucao_cpu(self, id_processo, end_logico):
+        print("Função não implementada ainda")
+
+    def executar_operacao_io(self, id_processo, end_logico):
+        print("Função não implementada ainda")
 
     def substituir_clock(self) -> int:
         # enquanto achar 1 no bit used, vai movendo o clock e trocando todo 1 pra 0
