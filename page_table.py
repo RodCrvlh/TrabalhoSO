@@ -22,7 +22,7 @@ class PageTableEntry:
 class PageTable:
     def __init__(self, qtd_entradas):
         self.qtd_entradas = qtd_entradas
-        self.entradas = []
+        self.entradas: list[PageTableEntry] = []
 
         for _ in range(self.qtd_entradas):
             entrada = PageTableEntry()
@@ -34,10 +34,14 @@ class PageTable:
         entrada.presenca = 0
 
 
-    def adicionar_pagina(self, num_pagina, num_quadro):
+    def adicionar_quadro(self, num_pagina, num_quadro):
         entrada = self.entradas[num_pagina]
         entrada.set(num_quadro)
         return entrada
+
+
+    def get_entrada(self, n_pagina):
+        return self.entradas[n_pagina]
 
 
     def buscar_quadro(self, n_pagina):
@@ -46,12 +50,12 @@ class PageTable:
         return -1 # Não achou pagina na TP
 
 
+    def esvaziar(self):
+        self.qtd_entradas = 0
+        self.entradas = []
+
+
     # mostra o estado atual da TP
     def mostrar(self):
         for i, entrada in enumerate(self.entradas):
             print(i, entrada.show_string())
-
-
-    def esvaziar(self):
-        self.qtd_entradas = 0
-        self.entradas = []

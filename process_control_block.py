@@ -10,13 +10,10 @@ class ProcessState(Enum):
 
 
 class ProcessControlBlock:
-    def __init__(self, pid, image_address, image_page_count):
+    def __init__(self, pid, image_page_count):
         self.pid = pid
         self.state: ProcessState = ProcessState.NEW
 
-        # a informação abaixo costuma ficar numa VMA (Virtual Memory Area), mas
-        # colocamos aqui por simplicidade
-        self.image_address: int = image_address
         self.process_page_count: int = image_page_count
         self.page_table: PageTable | None = None
 
@@ -27,9 +24,6 @@ class ProcessControlBlock:
 
     def end_process(self):
         self.state = ProcessState.EXIT
-        self.image_address = -1
-
-        self.image_address = -1
         self.process_page_count = 0
 
         if self.page_table:

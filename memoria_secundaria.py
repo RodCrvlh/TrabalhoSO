@@ -6,11 +6,28 @@ class MemoriaSecundaria:
         self.tam_bloco = tam_bloco
         self.qtd_blocos = self.tam_ms//self.tam_bloco
 
+        self.alocados: list[tuple] = [] # [(end_inicial, tam), ...]
+
         self.dados: dict[int, w.Word] = {}  # endereçado por endereço do bloco + offset
                                             # o offset tendo os 2 últimos bits ignorados,
                                             # pois todos os dados "armazenados" em words
 
-        self.alocados: list[tuple] = [] # [(end_inicial, tam), ...]
+
+    def ler_bloco(self, swap_block_num):
+        # deve retornar o bloco todo (obvio)
+        bloco_copiado = []
+
+        for i in range(self.tam_bloco):
+            # TODO: might be wrong
+            word = self.dados[swap_block_num + i]
+            bloco_copiado.append(w.copy_word(word))
+
+        return bloco_copiado
+
+
+    def escrever_pagina(self, swap_block_num, pagina: list[w.Word]):
+        for idx, word in enumerate(pagina):
+            self.dados[swap_block_num + idx] = w.copy_word(word)
 
 
     # limitação: o algoritmo utilizado aqui gera fragmentação externa
@@ -58,22 +75,6 @@ class MemoriaSecundaria:
         self.alocados.sort()
 
 
-    def ler_bloco(self, end_bloco):
-        # deve retornar o bloco todo (obvio)
-        bloco_copiado = []
-
-        for i in range(self.tam_bloco):
-            word = self.dados[end_bloco + i]
-            bloco_copiado.append(self.copy_word(word))
-
-        return bloco_copiado
-
-
-    def escrever_pagina(self, endereco_bloco, pagina: list[w.Word]):
-        for idx, word in enumerate(pagina):
-            self.dados[endereco_bloco + idx] = self.copy_word(word)
-
-
     def tem_espaco_suficiente(self, qtd_paginas):
         end_candidato = 0
         tam = qtd_paginas * self.tam_bloco
@@ -86,13 +87,4 @@ class MemoriaSecundaria:
         return False
 
 
-    def copy_word(self, word: w.Word | None) -> w.Word:
-        if not word:
-            return w.Word().fill_with_trash()
-
-        copied_word = w.Word(word.tipo)
-        if word.tipo == w.TipoWord.DADO:
-            copied_word.set_dado(word.dado)
-        else:
-            copied_word.set_instrucao(word.instrucao)
-        return copied_word
+    def finge_que_ta_pegando_do_arquivo(self, qtd_paginas):

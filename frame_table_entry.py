@@ -19,21 +19,21 @@ class FrameTableEntry:
         self.modified = 0
 
         self.owner_process: ProcessControlBlock | None = None
-        self.pte: PageTableEntry | None = None
-        self.virtual_page_number: int = 0
+
+        self.page_table_entry: PageTableEntry | None = None
+        self.swap_location: int = -1
 
         self.timestamp = 0
         self.used = 0
 
 
-    def setup(self, page_state: PageState, owner_process: ProcessControlBlock, virtual_page_number):
+    def setup(self, page_state: PageState, owner_process: ProcessControlBlock, page_table_entry: PageTableEntry):
         self.page_state = page_state
-
         self.owner_process = owner_process
-        self.virtual_page_number = virtual_page_number
+        self.page_table_entry = page_table_entry
+
         self.modified = 0
         self.timestamp = dt.datetime.now().timestamp()
-
 
     def iniciar_alocacao(self):
         self.page_state = PageState.TRANSITION_IN_PROGRESS

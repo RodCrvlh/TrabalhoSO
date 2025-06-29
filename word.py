@@ -10,11 +10,12 @@ class TipoWord(Enum):
     INSTRUCAO = 1
 
 class Word:
+    tipo: TipoWord | None
     dado: int
     instrucao: Instrucao
 
-    def __init__(self, tipo: TipoWord = TipoWord.DADO):
-        self.tipo : TipoWord = tipo # Dado | Instrucao
+    def __init__(self, tipo: TipoWord | None = None):
+        self.tipo = tipo # Dado | Instrucao | None
 
     def set_dado(self, dado: int):
         self.dado = dado
@@ -25,3 +26,15 @@ class Word:
     def fill_with_trash(self):
         self.dado = randint(-2147483648, 2147483647)
         return self
+
+
+def copy_word(word: Word | None) -> Word:
+    if not word:
+        return Word().fill_with_trash()
+
+    copied_word = Word(word.tipo)
+    if word.tipo == TipoWord.DADO:
+        copied_word.set_dado(word.dado)
+    else:
+        copied_word.set_instrucao(word.instrucao)
+    return copied_word
