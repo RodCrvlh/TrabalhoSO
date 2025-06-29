@@ -10,11 +10,11 @@ class TipoWord(Enum):
     INSTRUCAO = 1
 
 class Word:
-    tipo: TipoWord | None
+    tipo: TipoWord
     dado: int
     instrucao: Instrucao
 
-    def __init__(self, tipo: TipoWord | None = None):
+    def __init__(self, tipo: TipoWord = TipoWord.DADO):
         self.tipo = tipo # Dado | Instrucao | None
 
     def set_dado(self, dado: int):

@@ -133,7 +133,6 @@ class GerenciadorMemoria:
         # tira da fila, se ele estiver em alguma
         if pcb.state == ProcessState.BLOCKED:
             self.blocked_queue_head = self.pop_process(pcb, self.blocked_queue_head)
-
         if pcb.state == ProcessState.READY:
             self.ready_queue_head = self.pop_process(pcb, self.ready_queue_head)
 
@@ -309,7 +308,7 @@ class GerenciadorMemoria:
 
 
     def libera_quadros_ms(self, quadros: list[int]):
-        pass
+        self.ms.
 
 
     def executar_instrucao_cpu(self, id_processo, end_logico):
