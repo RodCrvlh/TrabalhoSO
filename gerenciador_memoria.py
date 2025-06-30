@@ -15,6 +15,8 @@ from process_control_block import ProcessControlBlock, ProcessState
 from page_table import PageTable
 from tipo_interrupt import TipoInterrupt
 
+from interpreter import InstrucaoProcesso
+
 
 class GerenciadorMemoria:
     # politicas: 'lru', 'clock'
@@ -43,6 +45,14 @@ class GerenciadorMemoria:
         self.dispositivos_IO: dict[str, DispositivoIO] = {}
 
         self.politica_sub = politica_substituicao
+
+
+    def adicionar_instrucao_processo(self, id_processo: str, instrucao: InstrucaoProcesso):
+        pcb = self.pid_hash.get(id_processo)
+        if not pcb:
+            print(f"O Processo {id_processo} não existe")
+            return
+        pcb.instrucoes_simuladas.append(instrucao)
 
 
     def criar_processo(self, id_processo: str, tam_imagem):
@@ -290,7 +300,7 @@ class GerenciadorMemoria:
         return num_quadro
 
 
-    def solicita_escrita_memoria(self, id_processo, end_logico_dec: int, conteudo: w.Word):
+    def solicita_escrita_memoria(self, id_processo, end_logico_dec: int, conteudo: int):
         # pega o process control block
         pcb = self.pid_hash.get(id_processo)
 
@@ -302,7 +312,9 @@ class GerenciadorMemoria:
         num_quadro = self.mmu.buscar_pagina(end_logico_bin, pcb.page_table)
 
         pcb.reg_ultima_instrucao = "solicita_escrita_memoria"
-        pcb.reg_dado = conteudo
+        word = w.Word()
+        word.set_dado(conteudo)
+        pcb.reg_dado = word
         pcb.reg_endereco_logico = end_logico_bin
 
         # se achou o quadro na memória, só continua

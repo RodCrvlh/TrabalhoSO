@@ -3,6 +3,8 @@ from page_table import PageTable
 import word as w
 from MMU import EnderecoLogico
 
+from interpreter import InstrucaoProcesso
+
 class ProcessState(Enum):
     NEW = 0,
     READY = 1,
@@ -27,6 +29,10 @@ class ProcessControlBlock:
         self.reg_endereco_logico: EnderecoLogico = EnderecoLogico(bin(0), bin(0))
         self.reg_dado: w.Word = w.Word().fill_with_trash()
         self.reg_ultima_instrucao: str = ""
+
+        # instrucoes
+        self.pc = 0
+        self.instrucoes_simuladas: list[InstrucaoProcesso] = []
 
 
     def end_process(self):
