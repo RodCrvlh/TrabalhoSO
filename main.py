@@ -1,10 +1,12 @@
-from gerenciador_memoria import GerenciadorMemoria
+from gerenciador_de_memoria import GerenciadorMemoria
 from translation_lookaside_buffer import TLB
 
 from memoria_principal import MemoriaPrincipal
 from memoria_secundaria import MemoriaSecundaria
 from LeitorDeArquivo import LeitorDeArquivo
 from pathlib import Path
+
+from interpreter import Interpreter
 
 def convert_to_bytes(qtd: int, unidade: str):
     match unidade:
@@ -18,7 +20,8 @@ def convert_to_bytes(qtd: int, unidade: str):
 
 
 def main():
-    print("A memória principal está limitada a no máximo 4 GiB (4096 MiB), e o endereço lógico pode ter no máximo 32 bits.")
+    print("Este simulador assume um computador DE 32 bits.")
+    print("Assim, a memória principal está limitada a no máximo 4 GiB (4096 MiB), e o endereço lógico pode ter no máximo 32 bits.")
     print("Valores maiores que os indicados acima serão ignorados, setados automaticamente para os limites.")
 
     tam_quadro = int(input("Defina o tamanho do quadro/página:"))
@@ -38,7 +41,6 @@ def main():
     if tam_mp > 4 * pow(2,30):
         tam_mp = 4 * pow(2,30)
 
-
     print("Aguarde um tempo, essa operação pode demorar")
 
     n_quadro = tam_mp // tam_quadro
@@ -48,11 +50,12 @@ def main():
     mem_sec = MemoriaSecundaria(tam_mem_sec, tam_quadro)
     gm = GerenciadorMemoria(tlb, mem_principal, mem_sec, tam_end_logico, tam_quadro, 'LRU')
 
-    caminho_str = "C:/Users/digao/PycharmProjects/TrabalhoSO"
     caminho_arquivo = Path("entrada.txt")
-    leitor = LeitorDeArquivo(gm)
-    leitor.carregar_arquivo(caminho_arquivo)
+    leitor = LeitorDeArquivo()
+    programa = leitor.carregar_arquivo(caminho_arquivo)
 
+    interpreter = Interpreter(programa, gm)
+    interpreter.start()
 
 if __name__ == "__main__":
     main()

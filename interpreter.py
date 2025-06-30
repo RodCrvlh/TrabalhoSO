@@ -1,4 +1,4 @@
-from gerenciador_memoria import GerenciadorMemoria
+from gerenciador_de_memoria import GerenciadorMemoria
 
 class InstrucaoProcesso:
     def __init__(self, id_processo: str, operacao: str, endereco_logico: int, valor: int):
@@ -13,12 +13,14 @@ class Interpreter:
         self.gm = gm
         self.programa = programa
 
+
+    def start(self):
         self.interpret()
         self.run()
 
     def interpret(self):
         for instrucao in self.programa:
-            partes = instrucao.split()
+            partes = instrucao.split() # divide a linha em várias strings
 
             id_processo = partes[0]
             operacao = partes[1]

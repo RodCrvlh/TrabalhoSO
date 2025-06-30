@@ -34,7 +34,7 @@ class MemoriaSecundaria:
         return True
 
 
-    def ler_bloco(self, swap_block_num, process_id, num_pagina, interrupt_handler: Callable[[TipoInterrupt, str, int, list[w.Word] | None]]):
+    def ler_bloco(self, swap_block_num, process_id, num_pagina, interrupt_handler: Callable[[TipoInterrupt, str, int, list[w.Word] | None], None]):
         bloco_copiado = []
         for i in range(self.tam_bloco//4):
             word = self.dados[swap_block_num][i]
@@ -47,7 +47,7 @@ class MemoriaSecundaria:
             self.dados[swap_block_num][idx] = w.copy_word(word)
 
 
-    def finge_que_ta_pegando_do_arquivo(self, num_pagina, process_id, interrupt_handler: Callable[[TipoInterrupt, str, int,  list[w.Word] | None]]):
+    def finge_que_ta_pegando_do_arquivo(self, num_pagina, process_id, interrupt_handler: Callable[[TipoInterrupt, str, int,  list[w.Word] | None], None]):
         print("carregando a página no arquivo original...")
         bloco_lido = []
         for i in range(self.tam_bloco//4):
