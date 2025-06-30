@@ -220,9 +220,10 @@ class GerenciadorMemoria:
 
         elif tipo == TipoInterrupt.LEITURA_MS:
             if pagina:
+                quadro = self.salva_pagina_na_mp(id_processo, num_pagina, pagina)
+
                 print(f"Leitura da MS finalizada. Processo {id_processo} setado novamente para Ready")
                 self.set_process_ready(id_processo)
-                quadro = self.salva_pagina_na_mp(id_processo, num_pagina, pagina)
 
                 match pcb.reg_ultima_instrucao:
                     case "solicita_escrita_memoria":
@@ -437,6 +438,9 @@ class GerenciadorMemoria:
             self.dispositivos_IO[id_dispositivo_IO] = DispositivoIO(id_dispositivo_IO)
 
         self.dispositivos_IO[id_dispositivo_IO].instrucao_IO(id_processo, self.interrupt_handler)
+
+        # como é IO, coloca como bloqueado
+        self.set_process_blocked(id_processo)
 
 
     #
