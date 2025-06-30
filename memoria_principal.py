@@ -5,44 +5,42 @@ class MemoriaPrincipal:
     def __init__(self, qtd_quadros, tam_quadro):
         self.qtd_quadros = qtd_quadros
         self.tam_quadro = tam_quadro
-
         self.qtd_bits_quadro = int(log2(tam_quadro))
 
-        self.dados: dict[int, w.Word] = {}
+        # enderecado como dados[num_quadro][offset/4]
+        # offset/4 pois armazena words, q ocupam 4 bytes
+        self.dados: dict[int, list[w.Word]] = {}
 
 
-    def ler_quadro(self, end_fisico) -> dict[int, w.Word]:
-        frame_address_part = self._get_frame_addres_part(end_fisico)
-
-        quadro_copiado = {}
-        for i in range(0, self.tam_quadro, 4):
-            word = self.dados[frame_address_part + i]
+    def ler_quadro(self, num_quadro) -> list[w.Word]:
+        quadro_copiado = []
+        for i in range(self.tam_quadro//4):
+            word = self.dados[num_quadro][i]
             quadro_copiado[i] = w.copy_word(word)
         return quadro_copiado
 
 
+    def escrever_pagina(self, num_quadro, pagina: list[w.Word]):
+        for idx, word in enumerate(pagina):
+            self.dados[num_quadro][idx] = w.copy_word(word)
+
+
     def ler(self, end_fisico) -> w.Word:
-        word = self.dados[self._get_relevant_address_part(end_fisico)]
+        num_quadro, offset = self.desmonta_endereco(end_fisico)
+        word = self.dados[num_quadro][(offset//4)]
         return w.copy_word(word)
 
 
-    def escrever_pagina(self, end_fisico_pagina, pagina: dict[int, w.Word]):
-        for idx, word in pagina.items():
-            self.dados[end_fisico_pagina + idx] = w.copy_word(word)
-
-
     def escrever(self, end_fisico, conteudo: w.Word):
-        self.dados[self._get_relevant_address_part(end_fisico)] = w.copy_word(conteudo)
+        num_quadro, offset = self.desmonta_endereco(end_fisico)
+        self.dados[num_quadro][offset//4] = w.copy_word(conteudo)
+
+
+    def desmonta_endereco(self, endereco_fisico):
+        num_quadro = int(bin(endereco_fisico)[:-self.qtd_bits_quadro], 2)
+        offset = int(bin(endereco_fisico)[self.qtd_bits_quadro:], 2)
+        return num_quadro, offset
 
 
     def mostrar(self):
         print("PLACEHOLDER")
-
-    # como cada word são 4 bytes, substitui os 2 ultimos bits do endereço por 0
-    # pra indexar o dict de dados com offset
-    def _get_relevant_address_part(self, physical_address):
-        return int(bin(physical_address)[:-2] + '00', 2)
-
-    # pega o endereco sem o offset
-    def _get_frame_addres_part(self, physical_address):
-        return int(bin(physical_address)[:-self.qtd_bits_quadro] + '0' * self.qtd_bits_quadro, 2)

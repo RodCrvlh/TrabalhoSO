@@ -24,11 +24,12 @@ class Word:
         self.instrucao = instrucao
 
     def fill_with_trash(self):
+        self.tipo = TipoWord.DADO
         self.dado = randint(-2147483648, 2147483647)
         return self
 
 
-def copy_word(word: Word | None) -> Word:
+def copy_word(word: Word | None = None) -> Word:
     if not word:
         return Word().fill_with_trash()
 

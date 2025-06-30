@@ -31,10 +31,7 @@ class GerenciadorMemoria:
         self.clock_pointer = 0
 
         # lista com os índices de quadros livres
-        self.quadros_livres: list[int] = []
-
-        for i in range(self.mp.qtd_quadros):
-            self.quadros_livres.append(i)
+        self.quadros_livres: list[int] = [i for i in range(self.mp.qtd_quadros)]
 
         self.politica_sub = politica_substituicao
 
@@ -192,23 +189,23 @@ class GerenciadorMemoria:
             return -1
 
         # tenta alocar um quadro na MP
-        endereco_quadro = self.alocar_quadro_mp()
+        num_quadro = self.alocar_quadro_mp()
 
-        if endereco_quadro == -1:
+        if num_quadro == -1:
             print('memoria cheia, iniciando substituição')
             if self.politica_sub == 'LRU':
-                endereco_quadro = self.substituir_LRU()
+                num_quadro = self.substituir_LRU()
             else:
-                endereco_quadro = self.substituir_clock()
+                num_quadro = self.substituir_clock()
 
         # escreve a página no quadro alocado
-        self.mp.escrever_pagina(endereco_quadro, pagina)
+        self.mp.escrever_pagina(num_quadro, pagina)
 
         # registra o quadro na page table do processo
-        pte = pcb.page_table.adicionar_quadro(num_pagina, endereco_quadro)
+        pte = pcb.page_table.adicionar_quadro(num_pagina, num_quadro)
 
         # conecta essa pagina adicionada
-        fte = self.frame_table[endereco_quadro]
+        fte = self.frame_table[num_quadro]
         fte.setup(PageState.ACTIVE, pcb, pte)
 
         if num_quadro_swap != -1:
@@ -224,7 +221,7 @@ class GerenciadorMemoria:
         # com a pagina carregada, define o processo como pronto
         pcb.set_ready()
 
-        return endereco_quadro
+        return num_quadro
 
 
     def escrita_memoria(self, id_processo, end_logico_dec: int, conteudo):
@@ -285,15 +282,23 @@ class GerenciadorMemoria:
         return len(self.quadros_livres) == 0
 
 
+    def porcentagem_mp_usada(self):
+        return 1 - len(self.quadros_livres) / self.mp.qtd_quadros
+
+
+    def porcentagem_swap_usada(self):
+        return 1 - len(self.ms.blocos_livres) / self.ms.qtd_blocos
+
+
     def alocar_quadro_mp(self) -> int:
         if self.mp_cheia():
             print("MP está cheia! Não foi possível alocar um quadro.")
             return -1
 
-        endereco_quadro = self.quadros_livres.pop()
-        self.frame_table[endereco_quadro].iniciar_alocacao()
+        num_quadro = self.quadros_livres.pop()
+        self.frame_table[num_quadro].iniciar_alocacao()
 
-        return endereco_quadro
+        return num_quadro
 
 
     def liberar_quadro_mp(self, num_quadro):
@@ -308,7 +313,8 @@ class GerenciadorMemoria:
 
 
     def libera_quadros_ms(self, quadros: list[int]):
-        self.ms.
+        for num_quadro in quadros:
+            self.ms.liberar_bloco(num_quadro)
 
 
     def executar_instrucao_cpu(self, id_processo, end_logico):

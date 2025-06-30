@@ -1,88 +1,64 @@
+from math import log2
 import word as w
 
 class MemoriaSecundaria:
     def __init__(self, tam_ms, tam_bloco):
         self.tam_ms = tam_ms
+
         self.tam_bloco = tam_bloco
         self.qtd_blocos = self.tam_ms//self.tam_bloco
+        self.qtd_bits_bloco = int(log2(self.tam_bloco))
 
-        self.alocados: list[tuple] = [] # [(end_inicial, tam), ...]
+        # enderecado como dados[num_bloco][offset/4]
+        # offset/4 pois armazena words, q ocupam 4 bytes
+        self.dados: dict[int, list[w.Word]] = {}
 
-        self.dados: dict[int, w.Word] = {}  # endereçado por endereço do bloco + offset
-                                            # o offset tendo os 2 últimos bits ignorados,
-                                            # pois todos os dados "armazenados" em words
+        self.blocos_livres: list[int] = [i for i in range(self.qtd_blocos)]
+
+    def alocar_bloco(self):
+        if len(self.blocos_livres) <= 0:
+            return -1
+        return self.blocos_livres.pop()
+
+
+    def liberar_bloco(self, num_bloco) -> bool:
+        if num_bloco < 0 or num_bloco >= self.qtd_blocos:
+            print(f"Bloco {num_bloco} da MS não existe")
+            return False
+        self.blocos_livres.append(num_bloco)
+        print(f"Bloco {num_bloco} da MS foi liberado")
+        return True
 
 
     def ler_bloco(self, swap_block_num):
         bloco_copiado = []
-        for i in range(self.tam_bloco):
-            # TODO: might be wrong
-            word = self.dados[swap_block_num + i]
+        for i in range(self.tam_bloco//4):
+            word = self.dados[swap_block_num][i]
             bloco_copiado.append(w.copy_word(word))
         return bloco_copiado
 
 
     def escrever_pagina(self, swap_block_num, pagina: list[w.Word]):
         for idx, word in enumerate(pagina):
-            self.dados[swap_block_num + idx] = w.copy_word(word)
+            self.dados[swap_block_num][idx] = w.copy_word(word)
 
 
-    def finge_que_ta_pegando_do_arquivo(self, qtd_paginas):
+    def finge_que_ta_pegando_do_arquivo(self, num_pagina):
+        print("carregando a página no arquivo original...")
+        bloco_lido = []
+        for i in range(self.tam_bloco//4):
+            word = w.copy_word()
+            bloco_lido.append(word)
+        return bloco_lido
 
 
-
-    # # limitação: o algoritmo utilizado aqui gera fragmentação externa
-    # def alocar_espaco(self, qtd_paginas) -> int:
-    #     end_candidato = 0
-    #     tam = qtd_paginas * self.tam_bloco
-
-    #     for alocado in self.alocados:
-    #         if alocado[0] <= end_candidato + tam:
-    #             end_candidato = alocado[0] + alocado[1] + 1
-    #         else:
-    #             self.alocados.append((end_candidato, tam))
-    #             self.tam_ms -= tam
-    #             return end_candidato
-    #     return -1
+    def desmonta_endereco(self, endereco_fisico):
+        num_quadro = int(bin(endereco_fisico)[:-self.qtd_bits_bloco], 2)
+        offset = int(bin(endereco_fisico)[self.qtd_bits_bloco:], 2)
+        return num_quadro, offset
 
 
-    # def liberar_espaco(self, end_inicial, qtd_paginas):
-    #     tam = qtd_paginas * self.tam_bloco
-    #     end_final = end_inicial + tam
-
-    #     for end, dado in self.dados.items():
-    #         if end >= end_inicial and end <= end_final:
-    #             self.dados.pop(end)
-
-    #     self.tam_ms += tam
-
-    #     for i, alocado in self.alocados:
-    #         # se o espaço a ser removido cobre a alocação toda
-    #         if end_inicial <= alocado[0] and end_final >= alocado[0] + alocado[1]:
-    #             self.alocados.pop(i)
-    #         # um pedaço no começo
-    #         elif end_inicial <= alocado[0] and end_final < alocado[0] + alocado[1]:
-    #             self.alocados.append((end_final + 1, alocado[0] + alocado[1] - end_final))
-    #             self.alocados.pop(i)
-    #         # um pedaço até o final
-    #         elif end_inicial > alocado[0] and end_final >= alocado[0] + alocado[1]:
-    #             alocado[1] = end_inicial - alocado[0]
-    #         # um pedaço no meio
-    #         else:
-    #             if end_inicial > alocado[0] and end_final < alocado[0] + alocado[1]:
-    #                 self.alocados.append((alocado[0], end_inicial - alocado[0]))
-    #                 self.alocados.append((end_final + 1, alocado[0] + alocado[1] - end_final))
-    #                 self.alocados.pop(i)
-    #     self.alocados.sort()
-
-
-    # def tem_espaco_suficiente(self, qtd_paginas):
-    #     end_candidato = 0
-    #     tam = qtd_paginas * self.tam_bloco
-
-    #     for alocado in self.alocados:
-    #         if alocado[0] <= end_candidato + tam:
-    #             end_candidato = alocado[0] + alocado[1] + 1
-    #         else:
-    #             return True
-    #     return False
+    def tem_espaco_suficiente(self, qtd_paginas):
+        if len(self.blocos_livres) > qtd_paginas:
+            return False
+        return True
