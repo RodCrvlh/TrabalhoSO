@@ -40,7 +40,7 @@ class GerenciadorMemoria:
         # lista com os índices de quadros livres
         self.quadros_livres: list[int] = [i for i in range(self.mp.qtd_quadros)]
 
-        self.dispositivos_IO: list[DispositivoIO] = []
+        self.dispositivos_IO: dict[str, DispositivoIO] = {}
 
         self.politica_sub = politica_substituicao
 
@@ -401,22 +401,6 @@ class GerenciadorMemoria:
         return num_quadro
 
 
-    def liberar_quadro_mp(self, num_quadro):
-        if num_quadro >= self.mp.qtd_quadros:
-            print("Quadro inexistente")
-            return
-
-        fte = self.frame_table[num_quadro]
-        fte.liberar()
-
-        self.quadros_livres.append(num_quadro)
-
-
-    def libera_quadros_ms(self, quadros: list[int]):
-        for num_quadro in quadros:
-            self.ms.liberar_bloco(num_quadro)
-
-
     # como não houve grandes especificações para essa parte, os valores
     # utilizados são aleatórios.
     def executar_instrucao_cpu(self, id_processo, end_logico):
@@ -442,8 +426,38 @@ class GerenciadorMemoria:
             print(f"Executando subtracao.\n{a} - {b} = {a - b}")
 
 
-    def executar_operacao_io(self, id_processo, end_logico):
-        print("Função não implementada ainda")
+    def executar_operacao_io(self, id_processo, id_dispositivo_IO):
+        pcb = self.pid_hash.get(id_processo)
+
+        if not pcb or not pcb.page_table:
+            print(f"O Processo {id_processo} não existe ou está corrompido. Execução de instrução de CPU abortado.")
+            return
+
+        if id_dispositivo_IO not in self.dispositivos_IO:
+            self.dispositivos_IO[id_dispositivo_IO] = DispositivoIO(id_dispositivo_IO)
+
+        self.dispositivos_IO[id_dispositivo_IO].instrucao_IO(id_processo, self.interrupt_handler)
+
+
+    #
+    # Desalocar nas memórias
+    #
+
+    def liberar_quadro_mp(self, num_quadro):
+        if num_quadro >= self.mp.qtd_quadros:
+            print("Quadro inexistente")
+            return
+
+        fte = self.frame_table[num_quadro]
+        fte.liberar()
+
+        self.quadros_livres.append(num_quadro)
+
+
+    def libera_quadros_ms(self, quadros: list[int]):
+        for num_quadro in quadros:
+            self.ms.liberar_bloco(num_quadro)
+
 
     #
     # Politicas de substituicao
