@@ -1,14 +1,19 @@
 import datetime as dt
+from random import randint
+
+import word as w
 
 from MMU import MemoryManagementUnit
 from translation_lookaside_buffer import TLB
 
 from memoria_principal import MemoriaPrincipal
 from memoria_secundaria import MemoriaSecundaria
+from dispositivo_io import DispositivoIO
 
 from frame_table_entry import FrameTableEntry, PageState
 from process_control_block import ProcessControlBlock, ProcessState
 from page_table import PageTable
+from tipo_interrupt import TipoInterrupt
 
 
 class GerenciadorMemoria:
@@ -22,8 +27,10 @@ class GerenciadorMemoria:
         # no linux, todos os processos são indexados em uma tabela hash chamada pidhash
         self.pid_hash: dict[str, ProcessControlBlock] = {}
 
+        # listas dos processos
         self.ready_queue_head: ProcessControlBlock | None = None
         self.blocked_queue_head: ProcessControlBlock | None = None
+        self.exited_processes: list[ProcessControlBlock] = []
 
         # estrutura indexada pelo frame number que descreve todos os frames (quadros) da memória principal.
         # é utilizado pelos algoritmos de substituição. no linux, é equivalente ao mem_map. o windows usa o PFN Database
@@ -32,6 +39,8 @@ class GerenciadorMemoria:
 
         # lista com os índices de quadros livres
         self.quadros_livres: list[int] = [i for i in range(self.mp.qtd_quadros)]
+
+        self.dispositivos_IO: list[DispositivoIO] = []
 
         self.politica_sub = politica_substituicao
 
@@ -53,7 +62,7 @@ class GerenciadorMemoria:
 
         pcb.alloc_page_table(PageTable(qtd_paginas_processo)) # cria uma page table pro processo
         self.set_process_ready(pcb.pid) # admite o processo
-        self.carregar_pagina_pra_mp(pcb, 0) # traz as primeira pagina pra MP (e pra page table)
+        self.solicita_pagina_da_ms(pcb, 0) # traz as primeira pagina pra MP (e pra page table)
 
 
     # tira o processo da lista passada e retorna a cabeça da lista
@@ -113,7 +122,7 @@ class GerenciadorMemoria:
         if pcb.state == ProcessState.BLOCKED:
             self.blocked_queue_head = self.pop_process(pcb, self.blocked_queue_head)
 
-        if pcb.state == ProcessState.BLOCKED:
+        if pcb.state == ProcessState.READY:
             self.ready_queue_head = self.pop_process(pcb, self.ready_queue_head)
 
         pcb.block()
@@ -135,6 +144,8 @@ class GerenciadorMemoria:
 
         # se não tem nem page table, não tem nada alocado, só retorna
         if not pcb.page_table:
+            pcb.end_process()
+            self.exited_processes.append(pcb)
             return
 
         quadros_pra_excluir_ms: list[int] = []
@@ -152,8 +163,10 @@ class GerenciadorMemoria:
         # libera na memoria secundaria
         self.libera_quadros_ms(quadros_pra_excluir_ms)
 
-        # limpa os dados do processo (exceto alguns metadados) e seta status para 'Exit'
+        # limpa os dados do processo (exceto alguns metadados), seta status para 'Exit' e
+        # joga pra lista dos terminados
         pcb.end_process()
+        self.exited_processes.append(pcb)
 
 
     def move_clock(self):
@@ -167,25 +180,73 @@ class GerenciadorMemoria:
             self.clock = ordem[0]
 
 
-    def carregar_pagina_pra_mp(self, pcb: ProcessControlBlock, num_pagina: int):
+    def solicita_pagina_da_ms(self, pcb: ProcessControlBlock, num_pagina: int):
         if not pcb.page_table:
             print(f"Processo {pcb.pid} não tem tabela de páginas alocadas. Abortando operação.")
-            return -1
+            self.terminar_processo(pcb.pid)
+            return
 
         if num_pagina > pcb.process_page_count or num_pagina < 0:
             print("Erro fatal. Número de página inválido. Abortando operação.")
-            return -1
+            self.terminar_processo(pcb.pid)
+            return
 
         pte = pcb.page_table.get_entrada(num_pagina)
         num_quadro_swap = pte.page_frame_number
 
+        # como tá pedindo da MS, coloca o processo na fila de bloqueados
+        self.set_process_blocked(pcb.pid)
+
         if pte.presenca and num_quadro_swap == -1:
-            pagina = self.ms.finge_que_ta_pegando_do_arquivo(num_pagina) # não tá na região de swap, então seria pego do arquivo do programa
+            pagina = self.ms.finge_que_ta_pegando_do_arquivo(num_pagina, pcb.pid, self.interrupt_handler) # não tá na região de swap, então seria pego do arquivo do programa
         else:
-            pagina = self.ms.ler_bloco(num_quadro_swap) # lê a pagina do swap
+            pagina = self.ms.ler_bloco(num_quadro_swap, pcb.pid, num_pagina, self.interrupt_handler) # lê a pagina do swap
 
         if pagina is None:
             print(f"Não foi possível carregar a pagina {num_pagina} do swap do processo {pcb.pid} para a MP")
+            self.terminar_processo(pcb.pid)
+
+
+    def interrupt_handler(self, tipo: TipoInterrupt, id_processo, num_pagina: int = -1, pagina: list[w.Word] | None = None):
+        pcb = self.pid_hash.get(id_processo)
+
+        if not pcb:
+            print(f"O Processo {id_processo} não existe")
+            return
+
+        if tipo == TipoInterrupt.OP_IO:
+            print(f"Operação IO terminada. Processo {id_processo} setado novamente para Ready")
+            self.set_process_ready(id_processo)
+
+        elif tipo == TipoInterrupt.LEITURA_MS:
+            if pagina:
+                print(f"Leitura da MS finalizada. Processo {id_processo} setado novamente para Ready")
+                self.set_process_ready(id_processo)
+                quadro = self.salva_pagina_na_mp(id_processo, num_pagina, pagina)
+
+                match pcb.reg_ultima_instrucao:
+                    case "solicita_escrita_memoria":
+                        self.continua_escrita_memoria(pcb, quadro)
+                    case "solicita_leitura_memoria_dado":
+                        self.continua_leitura_memoria(pcb, quadro, w.TipoWord.DADO)
+                    case "solicita_leitura_memoria_instrucao":
+                        self.continua_leitura_memoria(pcb, quadro, w.TipoWord.INSTRUCAO)
+                return
+            else:
+                print(f"A imagem do processo possivelmente está corrompida. Terminando processo {id_processo}.")
+                self.terminar_processo(id_processo)
+
+
+    def salva_pagina_na_mp(self, id_processo, num_pagina, pagina) -> int:
+        pcb = self.pid_hash.get(id_processo)
+
+        if not pcb:
+            print(f"O processo {id_processo} não existe. Abortando.")
+            return -1
+
+        if not pcb.page_table:
+            print(f"Processo {pcb.pid} não tem tabela de páginas alocadas. Abortando operação.")
+            self.terminar_processo(pcb.pid)
             return -1
 
         # tenta alocar um quadro na MP
@@ -201,10 +262,14 @@ class GerenciadorMemoria:
         # escreve a página no quadro alocado
         self.mp.escrever_pagina(num_quadro, pagina)
 
+        # antes de limpar o local de swap dessa pagina da tabela de paginas, guarda pra salvar na frame table
+        pte = pcb.page_table.get_entrada(num_pagina)
+        num_quadro_swap = pte.page_frame_number
+
         # registra o quadro na page table do processo
         pte = pcb.page_table.adicionar_quadro(num_pagina, num_quadro)
 
-        # conecta essa pagina adicionada
+        # conecta essa pagina adicionada no quadro
         fte = self.frame_table[num_quadro]
         fte.setup(PageState.ACTIVE, pcb, pte)
 
@@ -224,7 +289,7 @@ class GerenciadorMemoria:
         return num_quadro
 
 
-    def escrita_memoria(self, id_processo, end_logico_dec: int, conteudo):
+    def solicita_escrita_memoria(self, id_processo, end_logico_dec: int, conteudo: w.Word):
         # pega o process control block
         pcb = self.pid_hash.get(id_processo)
 
@@ -235,10 +300,20 @@ class GerenciadorMemoria:
         end_logico_bin = self.mmu.create_end_logico_bin(end_logico_dec)
         num_quadro = self.mmu.buscar_pagina(end_logico_bin, pcb.page_table)
 
-        # se não achou o quadro na memória, tenta carregar da swap
-        if num_quadro == -1:
-            num_quadro = self.carregar_pagina_pra_mp(pcb, end_logico_bin.num_pag_int())
+        pcb.reg_ultima_instrucao = "solicita_escrita_memoria"
+        pcb.reg_dado = conteudo
+        pcb.reg_endereco_logico = end_logico_bin
 
+        # se achou o quadro na memória, só continua
+        if num_quadro != -1:
+            self.continua_escrita_memoria(pcb, num_quadro)
+            return
+
+        # se não achou, tenta carregar da swap
+        self.solicita_pagina_da_ms(pcb, end_logico_bin.num_pag_int())
+
+
+    def continua_escrita_memoria(self, pcb: ProcessControlBlock, num_quadro: int):
         if num_quadro == -1:
             print("Não foi possível completar a operação de escrita. Abortando.")
             return
@@ -247,12 +322,12 @@ class GerenciadorMemoria:
         fte.mark_used()
         fte.check_modified()
 
-        end_fisico = self.mmu.traduzir_endereco(end_logico_bin, num_quadro)
+        end_fisico = self.mmu.traduzir_endereco(pcb.reg_endereco_logico, num_quadro)
 
-        self.mp.escrever(end_fisico, conteudo)
+        self.mp.escrever(end_fisico, pcb.reg_dado)
 
 
-    def leitura_memoria(self, id_processo, end_logico_dec: int):
+    def solicita_leitura_memoria(self, id_processo, end_logico_dec: int) -> w.Word | None:
         # pega o process control block
         pcb = self.pid_hash.get(id_processo)
 
@@ -263,19 +338,44 @@ class GerenciadorMemoria:
         end_logico_bin = self.mmu.create_end_logico_bin(end_logico_dec)
         num_quadro = self.mmu.buscar_pagina(end_logico_bin, pcb.page_table)
 
-        # se não achou o quadro na memória, tenta carregar da swap
-        if num_quadro == -1:
-            num_quadro = self.carregar_pagina_pra_mp(pcb, end_logico_bin.num_pag_int())
+        pcb.reg_endereco_logico = end_logico_bin
 
+        if pcb.reg_ultima_instrucao == "executar_instrucao_cpu":
+            pcb.reg_ultima_instrucao = "solicita_leitura_memoria_instrucao"
+            tipo = w.TipoWord.INSTRUCAO
+        else:
+            pcb.reg_ultima_instrucao = "solicita_leitura_memoria_dado"
+            tipo = w.TipoWord.DADO
+
+        # se achou o quadro na memória, continua a leitura
+        if num_quadro != -1:
+            self.continua_leitura_memoria(pcb, num_quadro, tipo)
+
+        # se não achou, tenta carregar da swap
+        self.solicita_pagina_da_ms(pcb, end_logico_bin.num_pag_int())
+
+
+    def continua_leitura_memoria(self, pcb: ProcessControlBlock, num_quadro: int, tipoLeitura: w.TipoWord):
         if num_quadro == -1:
             print("Não foi possível completar a operação de leitura. Abortando.")
-            return -1
+            return None
 
         fte = self.frame_table[num_quadro]
         fte.mark_used()
 
-        end_fisico = self.mmu.traduzir_endereco(end_logico_bin, num_quadro)
-        return self.mp.ler(end_fisico)
+        end_fisico = self.mmu.traduzir_endereco(pcb.reg_endereco_logico, num_quadro)
+        word = self.mp.ler(end_fisico)
+
+        # Se ele pega "lixo" da memória, converte pra uma instrução e segue daí. Se era
+        # uma instrução armazenada, usa ela
+        if tipoLeitura == w.TipoWord.INSTRUCAO and word.tipo != w.TipoWord.INSTRUCAO:
+            word.define_random_instrucao()
+
+        pcb.reg_dado = word
+
+        # nesse simulador não temos PC, então se pediu pra ler uma instrução específica,
+        # assumimos que será executada, então o código abaixo age como "program counter"
+        self.continua_instrucao_cpu(pcb)
 
 
     def mp_cheia(self):
@@ -317,8 +417,29 @@ class GerenciadorMemoria:
             self.ms.liberar_bloco(num_quadro)
 
 
+    # como não houve grandes especificações para essa parte, os valores
+    # utilizados são aleatórios.
     def executar_instrucao_cpu(self, id_processo, end_logico):
-        print("Função não implementada ainda")
+        pcb = self.pid_hash.get(id_processo)
+
+        if not pcb or not pcb.page_table:
+            print(f"O Processo {id_processo} não existe ou está corrompido. Execução de instrução de CPU abortado.")
+            return
+
+        pcb.reg_ultima_instrucao = "executar_instrucao_cpu"
+        self.solicita_leitura_memoria(id_processo, end_logico)
+
+
+    def continua_instrucao_cpu(self, pcb: ProcessControlBlock):
+        word = pcb.reg_dado
+
+        a = randint(-2147483648, 2147483647)
+        b = randint(-2147483648, 2147483647)
+
+        if word.instrucao == w.Instrucao.SOMA:
+            print(f"Executando soma.\n{a} + {b} = {a + b}")
+        else:
+            print(f"Executando subtracao.\n{a} - {b} = {a - b}")
 
 
     def executar_operacao_io(self, id_processo, end_logico):

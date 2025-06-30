@@ -28,6 +28,14 @@ class Word:
         self.dado = randint(-2147483648, 2147483647)
         return self
 
+    def define_random_instrucao(self):
+        self.tipo = TipoWord.INSTRUCAO
+        match(randint(0, 1)):
+            case 0:
+                self.instrucao = Instrucao.SOMA
+            case 1:
+                self.instrucao =Instrucao.SUB
+
 
 def copy_word(word: Word | None = None) -> Word:
     if not word:

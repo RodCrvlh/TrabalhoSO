@@ -1,5 +1,9 @@
 from math import log2
+import threading
+from typing import Callable
 import word as w
+
+from tipo_interrupt import TipoInterrupt
 
 class MemoriaSecundaria:
     def __init__(self, tam_ms, tam_bloco):
@@ -30,12 +34,12 @@ class MemoriaSecundaria:
         return True
 
 
-    def ler_bloco(self, swap_block_num):
+    def ler_bloco(self, swap_block_num, process_id, num_pagina, interrupt_handler: Callable[[TipoInterrupt, str, int, list[w.Word] | None]]):
         bloco_copiado = []
         for i in range(self.tam_bloco//4):
             word = self.dados[swap_block_num][i]
             bloco_copiado.append(w.copy_word(word))
-        return bloco_copiado
+        threading.Timer(3, interrupt_handler, args=(TipoInterrupt.LEITURA_MS, process_id, num_pagina, bloco_copiado))
 
 
     def escrever_pagina(self, swap_block_num, pagina: list[w.Word]):
@@ -43,13 +47,13 @@ class MemoriaSecundaria:
             self.dados[swap_block_num][idx] = w.copy_word(word)
 
 
-    def finge_que_ta_pegando_do_arquivo(self, num_pagina):
+    def finge_que_ta_pegando_do_arquivo(self, num_pagina, process_id, interrupt_handler: Callable[[TipoInterrupt, str, int,  list[w.Word] | None]]):
         print("carregando a página no arquivo original...")
         bloco_lido = []
         for i in range(self.tam_bloco//4):
             word = w.copy_word()
             bloco_lido.append(word)
-        return bloco_lido
+        threading.Timer(3, interrupt_handler, args=(TipoInterrupt.LEITURA_MS, process_id, num_pagina, bloco_lido))
 
 
     def desmonta_endereco(self, endereco_fisico):

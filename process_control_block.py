@@ -1,5 +1,7 @@
 from enum import Enum
 from page_table import PageTable
+import word as w
+from MMU import EnderecoLogico
 
 class ProcessState(Enum):
     NEW = 0,
@@ -20,6 +22,11 @@ class ProcessControlBlock:
         # ponteiros para listas
         self.prev: ProcessControlBlock | None = None
         self.next: ProcessControlBlock | None = None
+
+        # valor dos registradores salvos
+        self.reg_endereco_logico: EnderecoLogico = EnderecoLogico(bin(0), bin(0))
+        self.reg_dado: w.Word = w.Word().fill_with_trash()
+        self.reg_ultima_instrucao: str = ""
 
 
     def end_process(self):
