@@ -15,7 +15,7 @@ from process_control_block import ProcessControlBlock, ProcessState
 from page_table import PageTable
 from tipo_interrupt import TipoInterrupt
 
-from interpreter import InstrucaoProcesso
+from instrucao_processo import InstrucaoProcesso
 
 
 class GerenciadorMemoria:

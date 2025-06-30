@@ -3,7 +3,7 @@ from page_table import PageTable
 import word as w
 from MMU import EnderecoLogico
 
-from interpreter import InstrucaoProcesso
+from instrucao_processo import InstrucaoProcesso
 
 class ProcessState(Enum):
     NEW = 0,
