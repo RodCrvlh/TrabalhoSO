@@ -22,7 +22,7 @@ class Interpreter:
                 tamanho = self.get_tamanho_em_bytes(int(partes[2]), partes[3])
                 self.gm.criar_processo(id_processo, tamanho)
             else:
-                instrucao_processo = InstrucaoProcesso(id_processo, operacao, int(partes[2]), int(partes[3]))
+                instrucao_processo = InstrucaoProcesso(id_processo, operacao, int(partes[2]) if len(partes) > 2 else 0, int(partes[3]) if len(partes) > 3 else 0)
                 self.gm.adicionar_instrucao_processo(id_processo, instrucao_processo)
 
 
@@ -31,6 +31,7 @@ class Interpreter:
             processo_atual = self.gm.ready_queue_head
 
             if processo_atual:
+                self.gm.set_process_running(processo_atual)
                 instrucao = processo_atual.instrucoes_simuladas[processo_atual.pc]
 
                 if instrucao.operacao == 'R':

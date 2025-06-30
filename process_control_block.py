@@ -31,7 +31,7 @@ class ProcessControlBlock:
         self.reg_ultima_instrucao: str = ""
 
         # instrucoes
-        self.pc = 0
+        self.pc = -1
         self.instrucoes_simuladas: list[InstrucaoProcesso] = []
 
 
@@ -57,3 +57,4 @@ class ProcessControlBlock:
 
     def run(self):
         self.state = ProcessState.RUNNING
+        self.pc += 1

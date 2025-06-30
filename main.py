@@ -24,11 +24,18 @@ def main():
     print("Assim, a memória principal está limitada a no máximo 4 GiB (4096 MiB), e o endereço lógico pode ter no máximo 32 bits.")
     print("Valores maiores que os indicados acima serão ignorados, setados automaticamente para os limites.")
 
-    tam_quadro = int(input("Defina o tamanho do quadro/página:"))
-    tam_end_logico = int(input("Digite o tamanho em bits do endereço lógico:"))
-    n_entrada_tlb = int(input("Digite o numero de entradas da TLB:"))
-    entrada_tam_mp = input("Digite o tamanho da memoria principal seguido da unidade (qtd KB|MB|GB):")
-    entrada_tam_mem_sec = input("Digite o tamanho da memoria secundaria para swap, seguido da unidade (qtd KB|MB|GB):")
+    # tam_quadro = int(input("Defina o tamanho do quadro/página:"))
+    # tam_end_logico = int(input("Digite o tamanho em bits do endereço lógico:"))
+    # n_entrada_tlb = int(input("Digite o numero de entradas da TLB:"))
+    # entrada_tam_mp = input("Digite o tamanho da memoria principal seguido da unidade (qtd KB|MB|GB):")
+    # entrada_tam_mem_sec = input("Digite o tamanho da memoria secundaria para swap, seguido da unidade (qtd KB|MB|GB):")
+
+    # teste
+    tam_quadro = 4096
+    tam_end_logico = 32
+    n_entrada_tlb = 64
+    entrada_tam_mp = "2 GB"
+    entrada_tam_mem_sec = "2 GB"
 
     tam, unidade = entrada_tam_mp.split(' ')
     tam_mp = convert_to_bytes(int(tam), unidade)

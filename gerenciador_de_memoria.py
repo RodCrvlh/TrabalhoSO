@@ -70,8 +70,14 @@ class GerenciadorMemoria:
         pcb = ProcessControlBlock(id_processo, qtd_paginas_processo)
         self.pid_hash[id_processo] = pcb
 
+        print(f"+ Processo {id_processo} criado com {qtd_paginas_processo} páginas")
+
         pcb.alloc_page_table(PageTable(qtd_paginas_processo)) # cria uma page table pro processo
         self.set_process_ready(pcb.pid) # admite o processo
+
+        print(f"s - Processo {id_processo} setado como READY")
+
+        print(f"Solicitando primeira página do processo {id_processo} pra MP.")
         self.solicita_pagina_da_ms(pcb, 0) # traz as primeira pagina pra MP (e pra page table)
 
 
@@ -100,6 +106,15 @@ class GerenciadorMemoria:
         last.next = process
         process.prev = last
         return queue_head
+
+
+    def set_process_running(self, pcb: ProcessControlBlock):
+        if pcb.state == ProcessState.READY:
+            self.ready_queue_head = self.pop_process(pcb, self.ready_queue_head)
+
+        pcb.run()
+        print(f"s - Processo {pcb.pid} setado como READY")
+
 
 
     # define o processo como pronto, colocando-o na fila de pronto
@@ -160,6 +175,7 @@ class GerenciadorMemoria:
 
         quadros_pra_excluir_ms: list[int] = []
         for e in pcb.page_table.entradas:
+            print("CRASHOU AQUI ", e.page_frame_number)
             fte = self.frame_table[e.page_frame_number]
             if e.presenca == 1:
                 # libera na memoria principal
@@ -181,13 +197,13 @@ class GerenciadorMemoria:
 
     def move_clock(self):
         ordem = sorted(self.frame_table.keys())
-        clock_index = ordem.index(self.clock)
 
-        if self.clock_pointer < len(ordem):
-            self.clock += ordem[clock_index + 1]
+        clock_index = ordem.index(self.clock_pointer)
 
-        if self.clock_pointer == len(ordem):
-            self.clock = ordem[0]
+        if self.clock_pointer < len(ordem)-1:
+            self.clock_pointer = ordem[clock_index + 1]
+        elif self.clock_pointer == len(ordem)-1:
+            self.clock_pointer = ordem[0]
 
 
     def solicita_pagina_da_ms(self, pcb: ProcessControlBlock, num_pagina: int):
@@ -203,21 +219,27 @@ class GerenciadorMemoria:
 
         pte = pcb.page_table.get_entrada(num_pagina)
         num_quadro_swap = pte.page_frame_number
+        print(f"& Processo {pcb.pid} - Tabela de páginas acessada:")
+        print("  ∟", pte.show_string())
 
         # como tá pedindo da MS, coloca o processo na fila de bloqueados
+        print(f"s - Processo {pcb.pid} setado como BLOCKED")
         self.set_process_blocked(pcb.pid)
 
-        if pte.presenca and num_quadro_swap == -1:
-            pagina = self.ms.finge_que_ta_pegando_do_arquivo(num_pagina, pcb.pid, self.interrupt_handler) # não tá na região de swap, então seria pego do arquivo do programa
+        if not pte.presenca and num_quadro_swap == -1:
+            print(f"Buscando página do processo {pcb.pid} no arquivo original")
+            self.ms.finge_que_ta_pegando_do_arquivo(num_pagina, pcb.pid, self.interrupt_handler) # não tá na região de swap, então seria pego do arquivo do programa
         else:
-            pagina = self.ms.ler_bloco(num_quadro_swap, pcb.pid, num_pagina, self.interrupt_handler) # lê a pagina do swap
+            print(f"Buscando página do processo {pcb.pid} na área de swap")
+            self.ms.ler_bloco(num_quadro_swap, pcb.pid, num_pagina, self.interrupt_handler) # lê a pagina do swap
 
-        if pagina is None:
-            print(f"Não foi possível carregar a pagina {num_pagina} do swap do processo {pcb.pid} para a MP")
-            self.terminar_processo(pcb.pid)
+        # if pagina is None:
+        #     print(f"Não foi possível carregar a pagina {num_pagina} do swap do processo {pcb.pid} para a MP")
+        #     self.terminar_processo(pcb.pid)
 
 
     def interrupt_handler(self, tipo: TipoInterrupt, id_processo, num_pagina: int = -1, pagina: list[w.Word] | None = None):
+        print(f"! ! ! interrupção recebida - {str(tipo)} para {id_processo}")
         pcb = self.pid_hash.get(id_processo)
 
         if not pcb:
@@ -236,27 +258,35 @@ class GerenciadorMemoria:
                 self.set_process_ready(id_processo)
 
                 match pcb.reg_ultima_instrucao:
-                    case "solicita_escrita_memoria":
-                        self.continua_escrita_memoria(pcb, quadro)
                     case "solicita_leitura_memoria_dado":
                         self.continua_leitura_memoria(pcb, quadro, w.TipoWord.DADO)
                     case "solicita_leitura_memoria_instrucao":
                         self.continua_leitura_memoria(pcb, quadro, w.TipoWord.INSTRUCAO)
+                    case _:
+                        return
                 return
             else:
                 print(f"A imagem do processo possivelmente está corrompida. Terminando processo {id_processo}.")
                 self.terminar_processo(id_processo)
 
+        elif tipo == TipoInterrupt.ESCRITA_MS:
+            print(f"Escrita na MS finalizada. Processo {id_processo} setado novamente para Ready")
+            quadro = self.salva_pagina_na_mp(id_processo, num_pagina, pagina)
+            if pcb.reg_ultima_instrucao == "solicita_escrita_memoria":
+                self.continua_escrita_memoria(pcb, quadro)
+
 
     def salva_pagina_na_mp(self, id_processo, num_pagina, pagina) -> int:
+        print(f"> {id_processo} - Tentando salvar página {num_pagina} na MP")
+
         pcb = self.pid_hash.get(id_processo)
 
         if not pcb:
-            print(f"O processo {id_processo} não existe. Abortando.")
+            print(f">>>>>>> O processo {id_processo} não existe. Abortando.")
             return -1
 
         if not pcb.page_table:
-            print(f"Processo {pcb.pid} não tem tabela de páginas alocadas. Abortando operação.")
+            print(f">>>>>>> Processo {pcb.pid} não tem tabela de páginas alocadas. Abortando operação.")
             self.terminar_processo(pcb.pid)
             return -1
 
@@ -408,7 +438,11 @@ class GerenciadorMemoria:
             print("MP está cheia! Não foi possível alocar um quadro.")
             return -1
 
-        num_quadro = self.quadros_livres.pop()
+        num_quadro = self.quadros_livres.pop(0)
+        # como é só um simulador, para fins de desempenho ele só aloca uma página inascessada na hora que acessar
+        if not num_quadro in self.frame_table:
+            self.frame_table[num_quadro] = FrameTableEntry()
+
         self.frame_table[num_quadro].iniciar_alocacao()
 
         return num_quadro

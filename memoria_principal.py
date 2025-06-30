@@ -21,8 +21,15 @@ class MemoriaPrincipal:
 
 
     def escrever_pagina(self, num_quadro, pagina: list[w.Word]):
+        if num_quadro < 0 or num_quadro > self.qtd_quadros:
+            print("! Tentativa de escrita em endereço ilegal. Abortando.")
+            return
+
+        if num_quadro not in self.dados:
+            self.dados[num_quadro] = []
+        print(f". Escrevendo página no quadro {num_quadro}")
         for idx, word in enumerate(pagina):
-            self.dados[num_quadro][idx] = w.copy_word(word)
+            self.dados[num_quadro].append(w.copy_word(word))
 
 
     def ler(self, end_fisico) -> w.Word:

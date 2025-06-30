@@ -9,7 +9,7 @@ class DispositivoIO:
 
     def instrucao_IO(self, process_id, interrupt_handler: Callable[[TipoInterrupt, str, int, list[w.Word] | None], None]):
         print(f"Instrucao IO no dispositivo {self.id} solicitada pelo processo {process_id}")
-        threading.Timer(3, self.log_response, args=(TipoInterrupt.OP_IO, process_id, None))
+        threading.Timer(2, self.log_response, args=(TipoInterrupt.OP_IO, process_id, None))
 
 
     def log_response(self, process_id, interrupt_handler: Callable[[TipoInterrupt, str, int, list[w.Word] | None], None]):
